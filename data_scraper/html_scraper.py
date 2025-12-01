@@ -296,12 +296,140 @@ def parse_ebc_pad_page(html: str) -> dict:
 #  Parsing — Wheel-Size Vehicle Fitment
 # ------------------------------------------------------------
 
-def parse_wheelsize_vehicle_page(html: str) -> list[dict]:
+def parse_wheelsize_vehicle_page(html: str) -> dict:
+    """
+    Parse a Wheel-Size vehicle page and extract vehicle/hub/wheel specifications.
+    
+    Args:
+        html: HTML content of a Wheel-Size vehicle page
+    
+    Returns:
+        Raw dict with vehicle specs (not yet normalized - use normalize_vehicle in Mission 6)
+    """
     soup = BeautifulSoup(html, "html.parser")
-    results = []
-
-    # TODO: Extract PCD, center bore, OEM rotor specs.
-    return results
+    raw = {}
+    
+    def clean_value(text: str) -> str:
+        """Remove common formatting from specification values."""
+        if not text:
+            return ""
+        text = text.strip()
+        text = text.replace("\t", "").replace("\n", " ")
+        # Keep units for now - normalization happens in Mission 6
+        return text.strip()
+    
+    # Strategy 1: Look for specification tables
+    tables = soup.find_all('table')
+    for table in tables:
+        rows = table.find_all('tr')
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            if len(cells) >= 2:
+                label = cells[0].get_text().strip().lower()
+                value = clean_value(cells[1].get_text())
+                
+                # Vehicle identification
+                if 'make' in label or 'manufacturer' in label:
+                    raw['make'] = value
+                elif 'model' in label:
+                    raw['model'] = value
+                elif 'generation' in label:
+                    raw['generation'] = value
+                elif 'year from' in label or 'start year' in label:
+                    raw['year_from_raw'] = value
+                elif 'year to' in label or 'end year' in label:
+                    raw['year_to_raw'] = value
+                elif ('year' in label or 'years' in label) and 'from' not in label and 'to' not in label:
+                    # Handle "Years: 2016-2020" format
+                    raw['years_raw'] = value
+                
+                # Hub specifications
+                elif 'pcd' in label or 'bolt pattern' in label or 'bolt circle' in label:
+                    raw['hub_bolt_pattern_raw'] = value
+                elif 'bolt holes' in label or 'stud count' in label or 'lugs' in label:
+                    raw['hub_bolt_hole_count_raw'] = value
+                elif 'center bore' in label or 'centre bore' in label or 'hub bore' in label:
+                    raw['hub_center_bore_mm_raw'] = value
+                
+                # Front wheel/tire specs
+                elif 'front wheel width' in label or 'front rim width' in label:
+                    raw['front_wheel_width_in_raw'] = value
+                elif 'front wheel diameter' in label or 'front rim diameter' in label or 'front wheel size' in label:
+                    raw['front_wheel_diameter_in_raw'] = value
+                elif 'front tire' in label:
+                    raw['front_tire_dimensions_raw'] = value
+                
+                # Rear wheel/tire specs
+                elif 'rear wheel width' in label or 'rear rim width' in label:
+                    raw['rear_wheel_width_in_raw'] = value
+                elif 'rear wheel diameter' in label or 'rear rim diameter' in label or 'rear wheel size' in label:
+                    raw['rear_wheel_diameter_in_raw'] = value
+                elif 'rear tire' in label:
+                    raw['rear_tire_dimensions_raw'] = value
+                
+                # Rotor specifications
+                elif 'front rotor diameter' in label or 'front disc diameter' in label:
+                    raw['front_rotor_outer_diameter_mm_raw'] = value
+                elif 'front rotor thickness' in label or 'front disc thickness' in label:
+                    raw['front_rotor_thickness_mm_raw'] = value
+                elif 'rear rotor diameter' in label or 'rear disc diameter' in label:
+                    raw['rear_rotor_outer_diameter_mm_raw'] = value
+                elif 'rear rotor thickness' in label or 'rear disc thickness' in label:
+                    raw['rear_rotor_thickness_mm_raw'] = value
+    
+    # Strategy 2: Look for definition lists
+    dls = soup.find_all('dl')
+    for dl in dls:
+        terms = dl.find_all('dt')
+        definitions = dl.find_all('dd')
+        for dt, dd in zip(terms, definitions):
+            label = dt.get_text().strip().lower()
+            value = clean_value(dd.get_text())
+            
+            if 'make' in label:
+                raw['make'] = value
+            elif 'model' in label:
+                raw['model'] = value
+            elif 'generation' in label:
+                raw['generation'] = value
+            elif 'pcd' in label or 'bolt pattern' in label:
+                raw['hub_bolt_pattern_raw'] = value
+            elif 'center bore' in label or 'centre bore' in label:
+                raw['hub_center_bore_mm_raw'] = value
+    
+    # Strategy 3: Look for data attributes
+    spec_divs = soup.find_all(['div', 'span'], attrs=lambda x: x and any(k.startswith('data-') for k in x.keys()) if x else False)
+    for div in spec_divs:
+        if div.has_attr('data-make'):
+            raw['make'] = clean_value(div.get('data-make'))
+        if div.has_attr('data-model'):
+            raw['model'] = clean_value(div.get('data-model'))
+        if div.has_attr('data-pcd'):
+            raw['hub_bolt_pattern_raw'] = clean_value(div.get('data-pcd'))
+        if div.has_attr('data-bore'):
+            raw['hub_center_bore_mm_raw'] = clean_value(div.get('data-bore'))
+    
+    # Extract make/model from title/h1 if not found
+    if 'make' not in raw or 'model' not in raw:
+        h1 = soup.find('h1')
+        if h1:
+            title = h1.get_text().strip()
+            # Try to parse "Honda Civic 2016-2020" or similar formats
+            parts = title.split()
+            if len(parts) >= 2 and 'make' not in raw:
+                raw['make'] = parts[0]
+            if len(parts) >= 2 and 'model' not in raw:
+                raw['model'] = parts[1]
+    
+    # Parse bolt pattern "5x114.3" into components if present
+    if 'hub_bolt_pattern_raw' in raw and 'x' in raw['hub_bolt_pattern_raw']:
+        pattern = raw['hub_bolt_pattern_raw']
+        parts = pattern.split('x')
+        if len(parts) == 2:
+            raw['hub_bolt_hole_count_raw'] = parts[0].strip()
+            raw['hub_bolt_circle_mm_raw'] = parts[1].strip()
+    
+    return raw
 
 # ------------------------------------------------------------
 #  Normalization

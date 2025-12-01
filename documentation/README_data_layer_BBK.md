@@ -325,6 +325,84 @@ pad = parse_ebc_pad_page(html)
 
 ---
 
+### 3.5 Parsing Wheel-Size Vehicles (`parse_wheelsize_vehicle_page`)
+
+**Status: ✅ Implémenté (Mission 5)**
+
+La fonction `parse_wheelsize_vehicle_page` extrait les spécifications véhicule depuis une page Wheel-Size et retourne un **dict brut** (non normalisé).
+
+**⚠️ Important:** Cette fonction retourne des données **RAW** (brutes). La normalisation (conversion types, validation schéma) se fera dans `normalize_vehicle` (Mission 6).
+
+**Stratégies d'extraction (multi-méthodes):**
+
+1. **Tables HTML** (`<table>` avec `<tr><th>Label</th><td>Value</td></tr>`)
+   - Labels reconnus: Make, Model, Generation, Year From/To, PCD, Center Bore
+   - Supporte front/rear wheel, tire, rotor specifications
+
+2. **Listes de définitions** (`<dl>/<dt>/<dd>`)
+   - Mapping simple pour données structurées
+   - Gère variations de labels
+
+3. **Attributs data** (`data-make`, `data-model`, `data-pcd`, `data-bore`)
+   - Pour HTML moderne avec métadonnées structurées
+
+4. **Titre/H1 fallback**
+   - Extrait Make/Model depuis `<h1>` si absent des tables
+   - Pattern: "Honda Civic 2016-2020"
+
+**Champs extraits (raw, avec suffixe _raw):**
+
+**Identification véhicule:**
+- `make`, `model`, `generation`
+- `year_from_raw`, `year_to_raw`, `years_raw`
+
+**Spécifications moyeu:**
+- `hub_bolt_pattern_raw` (ex: "5x114.3")
+- `hub_bolt_hole_count_raw` (parsé depuis pattern)
+- `hub_bolt_circle_mm_raw` (parsé depuis pattern)
+- `hub_center_bore_mm_raw`
+
+**Roues avant/arrière:**
+- `front_wheel_width_in_raw`, `front_wheel_diameter_in_raw`
+- `rear_wheel_width_in_raw`, `rear_wheel_diameter_in_raw`
+
+**Pneus:**
+- `front_tire_dimensions_raw` (ex: "225/45R17")
+- `rear_tire_dimensions_raw`
+
+**Rotors OEM:**
+- `front_rotor_outer_diameter_mm_raw`, `front_rotor_thickness_mm_raw`
+- `rear_rotor_outer_diameter_mm_raw`, `rear_rotor_thickness_mm_raw`
+
+**Parsing automatique bolt pattern:**
+```python
+# "5x114.3" →
+{
+    "hub_bolt_pattern_raw": "5x114.3",
+    "hub_bolt_hole_count_raw": "5",
+    "hub_bolt_circle_mm_raw": "114.3"
+}
+```
+
+**Exemple:**
+```python
+html = "<html><table><tr><th>PCD</th><td>5x120</td></tr>...</table></html>"
+raw = parse_wheelsize_vehicle_page(html)
+# Returns: {"hub_bolt_pattern_raw": "5x120", ...}
+# NOT normalized - strings avec unités préservées
+```
+
+**Tests validés:**
+- ✅ Extraction table HTML (9 champs)
+- ✅ Extraction complète (19 champs: véhicule + roues + pneus + rotors)
+- ✅ Extraction definition list
+- ✅ Fallback titre/H1 pour Make/Model
+- ✅ Parsing automatique bolt pattern (5x114.3 → composants)
+
+**Note:** Les unités sont **préservées** dans les champs _raw (ex: "64.1mm", "7.5 inches"). La conversion et le nettoyage se feront en Mission 6 (`normalize_vehicle`).
+
+---
+
 ## 4. Ingestion (`database/ingest_pipeline.py`)
 
 Entrée : fichiers `.jsonl` contenant des objets compatibles schémas JSON.  
