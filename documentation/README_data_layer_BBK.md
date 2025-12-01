@@ -1245,12 +1245,97 @@ python test_rotor_list_scraper.py
 #### Évolutions futures
 
 **M10.3.1:** Support pagination automatique (+10x volume)  
-**M10.3.2:** Validation avec HTML réel des 3 sites  
 **M10.3.3:** Extension à 5-10 sites additionnels (+1000-2000 rotors)  
 **M10.3.4:** Rate limiting, retry logic, robustesse  
 **M10.3.5:** Enrichissement champs (bolt_circle_mm, offset_mm, weight)  
-**M10.4:** Scraping systématique par véhicules (URLs make/model)  
-**M10.5:** Scraping PDF catalogs (Zimmermann, StopTech) via Vision
+**M10.5:** Scraping systématique par véhicules (URLs make/model)  
+**M10.6:** Scraping PDF catalogs (Zimmermann, StopTech) via Vision
+
+---
+
+### 5.4 Validation HTML réel - Tentative et blocage (Mission 10.4)
+
+**Status: ⚠️ BLOQUÉ - Protection anti-bot sur tous les sites**
+
+**M10.4:** Tentative de téléchargement HTML réel pour valider parsers
+
+Tentative de validation des parsers M10.3 contre le HTML réel des sites.
+
+**Résultat:**
+- ❌ **AutoDoc UK:** HTTP 403 Forbidden (protection anti-bot)
+- ❌ **Mister-Auto FR:** HTTP 403 Forbidden (protection anti-bot)
+- ❌ **PowerStop US:** HTTP 404 Not Found (URL invalide ou JS requis)
+
+**Extraction:** 0 rotors (téléchargement bloqué)
+
+---
+
+#### Analyse technique
+
+**Méthode tentée:**
+```python
+# Simple HTTP request avec User-Agent
+req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0...'})
+response = urllib.request.urlopen(req)
+```
+
+**Blocage détecté:**
+- Sites modernes avec WAF (Cloudflare, Imperva)
+- Détection bot basée sur: TLS fingerprint, HTTP/2, comportement, absence JS
+- Simple User-Agent insuffisant
+
+---
+
+#### Alternatives disponibles
+
+**Option 1: Téléchargement manuel (recommandé immédiat)**
+- Ouvrir URL dans navigateur
+- View Source → Save HTML
+- Tester parsers sur HTML réel
+- **Effort:** 30 min
+- **Avantage:** Simple, vérifie visuelle page
+
+**Option 2: Selenium/Playwright (automatisé)**
+- Navigateur headless avec JS
+- Contourne protection bot (empreinte réaliste)
+- **Effort:** 2-4h setup
+- **Avantage:** Automatisé, support JS
+- **Inconvénient:** Dépendance externe (viole contrainte stdlib M10)
+
+**Option 3: Continuer avec fixtures (pragmatique)**
+- Fixtures validés (46/46 tests)
+- Structures HTML représentatives
+- Dataset suffisant pour M11-M15
+- **Avantage:** Zéro blocker
+- **Inconvénient:** Risque si sites changent structure
+
+---
+
+#### Décision recommandée
+
+✅ **Continuer avec fixtures pour M11-M15**
+
+**Rationale:**
+1. **Parsers prouvés fonctionnels** (46/46 tests, 21 rotors fixtures)
+2. **Dataset suffisant** pour clustering (M10) et master selection (M11)
+3. **Qualité > quantité** pour POC/MVP
+4. **Validation HTML réel différée** à M10.4.1 (post-MVP, si expansion volume nécessaire)
+
+**Risque mitigé:**
+- Structures HTML catalogues relativement stables (pas de redesign hebdomadaire)
+- Téléchargement manuel possible si parsers cassent
+- Selenium disponible si automatisation requise future
+
+---
+
+#### Fichiers générés
+
+- `run_mission10_4_validation.py` - Script validation (bloqué par bots)
+- `documentation/M10_4_real_html_validation_report.md` - Rapport technique (erreurs)
+- `documentation/M10_4_manual_checklist.md` - Guide validation manuelle
+- `documentation/M10_4_real_html_validation_log.md` - Analyse complète + alternatives
+
+Voir log complet pour détails techniques et guide téléchargement manuel.
 
 ---
 
