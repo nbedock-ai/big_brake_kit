@@ -134,6 +134,48 @@ normalized = normalize_rotor(raw, "dba")
 
 ---
 
+### 1.5 Normalisation Plaquettes (`normalize_pad`)
+
+**Status: ✅ Implémenté (Mission 4)**
+
+La fonction `normalize_pad` convertit les données brutes de plaquettes en objets conformes à `schema_pad.json`.
+
+**Règles de normalisation:**
+
+1. **Conversion dimensions** (string → float)
+   - `length_mm`, `height_mm`, `thickness_mm`
+   - Nettoyage automatique: suppression "mm", "²", espaces
+   - Valeurs invalides → `None`
+
+2. **Shape ID**
+   - Priorité: `raw["shape_id"]` ou `raw["shape"]`
+   - Codes EBC typiques: "FA123", "256", "21234"
+   - Requis: ne peut pas être vide
+
+3. **Champs optionnels**
+   - `swept_area_mm2`: float ou `None` (nettoyage "mm²")
+   - `backing_plate_type`: string ou `None` (ex: "Steel", "Aluminum")
+
+4. **Brand et catalog_ref**
+   - `brand`: provient du paramètre `source` (ex: "ebc")
+   - `catalog_ref`: `raw["catalog_ref"]` ou `raw["ref"]` ou `raw["part_number"]`
+   - Codes EBC typiques: "DP41686R", "FA256R"
+
+**Exemple:**
+```python
+raw = {
+    "shape_id": "FA123",
+    "length_mm": "100.5mm",
+    "height_mm": "45.2",
+    "thickness_mm": "15.0",
+    "catalog_ref": "DP41686R"
+}
+pad = normalize_pad(raw, source="ebc")
+# Returns: {"shape_id": "FA123", "length_mm": 100.5, ...}
+```
+
+---
+
 ## 2. Structure SQL
 
 Tables :
@@ -230,6 +272,55 @@ rotor = parse_dba_rotor_page(html)
 - ✅ Extraction definition list
 - ✅ Calcul automatique offset_mm
 - ✅ Inférence ventilation depuis titre
+- ✅ Extraction catalog_ref (codes complets)
+
+---
+
+### 3.4 Parsing EBC Pads (`parse_ebc_pad_page`)
+
+**Status: ✅ Implémenté (Mission 4)**
+
+La fonction `parse_ebc_pad_page` extrait les spécifications de plaquettes depuis une page produit EBC et retourne un objet normalisé.
+
+**Stratégies d'extraction (multi-méthodes):**
+
+1. **Tables HTML** (`<table>` avec `<tr><td>Label</td><td>Value</td></tr>`)
+   - Labels reconnus: "Shape ID", "Shape Code", "Length", "Height", "Thickness"
+   - Détection automatique des champs optionnels (swept area, backing plate)
+
+2. **Listes de définitions** (`<dl>/<dt>/<dd>`)
+   - Mapping flexible: "Shape" → `shape_id`, "Length" → `length_mm`
+   - Gère les variations de labels
+
+3. **Attributs data** (`data-shape`, `data-length`, etc.)
+   - Pour HTML moderne avec données structurées
+
+**Nettoyage automatique:**
+- Suppression unités: "mm", "mm²", "²"
+- Normalisation espaces et caractères spéciaux
+
+**Extraction catalog_ref:**
+- Recherche patterns EBC: "DP####XX", "FA####XX"
+- Fallback sur éléments `.product-code`
+- Fallback sur lignes "Part Number" / "Reference"
+
+**Extraction shape_id:**
+- Tables: labels contenant "shape"
+- Titre: pattern "Shape: [CODE]"
+- Valeur requise pour validation schéma
+
+**Exemple:**
+```python
+html = "<html><h1>EBC Redstuff DP41686R</h1><table>...</table></html>"
+pad = parse_ebc_pad_page(html)
+# Returns normalized dict with all fields typed correctly
+```
+
+**Tests validés:**
+- ✅ Extraction table HTML
+- ✅ Extraction definition list
+- ✅ Champs optionnels (swept area, backing plate)
+- ✅ Nettoyage unités (mm, mm²)
 - ✅ Extraction catalog_ref (codes complets)
 
 ---

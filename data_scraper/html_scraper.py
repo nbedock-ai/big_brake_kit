@@ -177,12 +177,120 @@ def parse_brembo_rotor_page(html: str) -> list[dict]:
 #  Parsing — EBC Pads
 # ------------------------------------------------------------
 
-def parse_ebc_pad_page(html: str) -> list[dict]:
+def parse_ebc_pad_page(html: str) -> dict:
+    """
+    Parse an EBC pad product page and extract pad specifications.
+    
+    Args:
+        html: HTML content of an EBC pad product page
+    
+    Returns:
+        Normalized pad dict conforming to schema_pad.json
+    """
     soup = BeautifulSoup(html, "html.parser")
-    results = []
-
-    # TODO: Extract pad shape dimensions.
-    return results
+    raw = {}
+    
+    def clean_value(text: str) -> str:
+        """Remove units and special characters from specification values."""
+        if not text:
+            return ""
+        text = text.strip()
+        text = text.replace("mm", "").replace("²", "").replace("mm²", "")
+        text = text.replace("\t", "").replace("\n", "")
+        return text.strip()
+    
+    # Strategy 1: Look for specification table
+    tables = soup.find_all('table')
+    for table in tables:
+        rows = table.find_all('tr')
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            if len(cells) >= 2:
+                label = cells[0].get_text().strip().lower()
+                value = clean_value(cells[1].get_text())
+                
+                # Map labels to field names
+                if 'shape' in label and 'id' in label:
+                    raw['shape_id'] = value
+                elif 'shape' in label or 'shape code' in label:
+                    raw['shape_id'] = value
+                elif 'length' in label:
+                    raw['length_mm'] = value
+                elif 'height' in label:
+                    raw['height_mm'] = value
+                elif 'thickness' in label:
+                    raw['thickness_mm'] = value
+                elif 'swept area' in label or 'area' in label:
+                    raw['swept_area_mm2'] = value
+                elif 'backing' in label or 'plate type' in label:
+                    raw['backing_plate_type'] = value
+                elif 'part' in label or 'ref' in label or 'sku' in label or 'code' in label:
+                    if 'shape' not in label:  # Don't confuse with shape_id
+                        raw['catalog_ref'] = value
+    
+    # Strategy 2: Look for definition lists
+    dls = soup.find_all('dl')
+    for dl in dls:
+        terms = dl.find_all('dt')
+        definitions = dl.find_all('dd')
+        for dt, dd in zip(terms, definitions):
+            label = dt.get_text().strip().lower()
+            value = clean_value(dd.get_text())
+            
+            if 'shape' in label:
+                raw['shape_id'] = value
+            elif 'length' in label:
+                raw['length_mm'] = value
+            elif 'height' in label:
+                raw['height_mm'] = value
+            elif 'thickness' in label:
+                raw['thickness_mm'] = value
+            elif 'swept area' in label:
+                raw['swept_area_mm2'] = value
+            elif 'backing' in label:
+                raw['backing_plate_type'] = value
+            elif 'part' in label or 'ref' in label:
+                raw['catalog_ref'] = value
+    
+    # Strategy 3: Look for data attributes
+    spec_divs = soup.find_all(['div', 'span'], class_=lambda x: x and ('spec' in x.lower() or 'pad' in x.lower()))
+    for div in spec_divs:
+        if div.has_attr('data-shape'):
+            raw['shape_id'] = clean_value(div.get('data-shape'))
+        if div.has_attr('data-length'):
+            raw['length_mm'] = clean_value(div.get('data-length'))
+        if div.has_attr('data-height'):
+            raw['height_mm'] = clean_value(div.get('data-height'))
+        if div.has_attr('data-thickness'):
+            raw['thickness_mm'] = clean_value(div.get('data-thickness'))
+    
+    # Extract catalog ref from title/h1 if not found
+    if 'catalog_ref' not in raw:
+        h1 = soup.find('h1')
+        if h1:
+            title = h1.get_text().strip()
+            # Look for EBC part numbers (usually format: DP####XX or FA####XX)
+            match = re.search(r'(DP|FA|EBC)\s*\d+[A-Z]*', title, re.IGNORECASE)
+            if match:
+                raw['catalog_ref'] = match.group(0).replace(' ', '')
+        
+        # Try product code div/span
+        product_code = soup.find(['div', 'span'], class_=lambda x: x and 'product-code' in x.lower())
+        if product_code:
+            raw['catalog_ref'] = clean_value(product_code.get_text())
+    
+    # Extract shape_id from title if not found
+    if 'shape_id' not in raw:
+        h1 = soup.find('h1')
+        if h1:
+            title = h1.get_text().strip()
+            # Look for shape codes (often alphanumeric like "FA123" or just numbers)
+            match = re.search(r'Shape\s*:?\s*([A-Z0-9]+)', title, re.IGNORECASE)
+            if match:
+                raw['shape_id'] = match.group(1)
+    
+    # Normalize and return
+    return normalize_pad(raw, source="ebc")
 
 # ------------------------------------------------------------
 #  Parsing — Wheel-Size Vehicle Fitment
@@ -309,15 +417,51 @@ def normalize_rotor(raw: dict, source: str) -> dict:
     }
 
 def normalize_pad(raw: dict, source: str) -> dict:
+    """
+    Normalize raw pad data to conform to schema_pad.json.
+    
+    Args:
+        raw: Dict with raw string/numeric values from scraper
+        source: Brand/source identifier (e.g., 'ebc', 'ferodo')
+    
+    Returns:
+        Dict conforming to PadSpec schema
+    """
+    def safe_float(val):
+        """Convert to float, return None if not possible."""
+        if val is None or val == "":
+            return None
+        try:
+            # Clean common units
+            if isinstance(val, str):
+                val = val.replace("mm", "").replace("²", "").strip()
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+    
+    # Required fields - convert to proper types
+    shape_id = raw.get("shape_id") or raw.get("shape") or ""
+    length_mm = safe_float(raw.get("length_mm") or raw.get("length"))
+    height_mm = safe_float(raw.get("height_mm") or raw.get("height"))
+    thickness_mm = safe_float(raw.get("thickness_mm") or raw.get("thickness"))
+    
+    # Optional fields
+    swept_area_mm2 = safe_float(raw.get("swept_area_mm2") or raw.get("swept_area"))
+    backing_plate_type = raw.get("backing_plate_type") or raw.get("backing_plate") or None
+    
+    # Brand and catalog ref
+    brand = source.lower()
+    catalog_ref = raw.get("catalog_ref") or raw.get("ref") or raw.get("part_number") or ""
+    
     return {
-        "shape_id": raw.get("shape_id"),
-        "length_mm": None,
-        "height_mm": None,
-        "thickness_mm": None,
-        "swept_area_mm2": None,
-        "backing_plate_type": None,
-        "brand": source,
-        "catalog_ref": raw.get("ref", None)
+        "shape_id": shape_id,
+        "length_mm": length_mm,
+        "height_mm": height_mm,
+        "thickness_mm": thickness_mm,
+        "swept_area_mm2": swept_area_mm2,
+        "backing_plate_type": backing_plate_type,
+        "brand": brand,
+        "catalog_ref": catalog_ref
     }
 
 def normalize_vehicle(raw: dict, source: str) -> dict:
