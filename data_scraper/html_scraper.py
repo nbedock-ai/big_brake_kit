@@ -593,19 +593,147 @@ def normalize_pad(raw: dict, source: str) -> dict:
     }
 
 def normalize_vehicle(raw: dict, source: str) -> dict:
+    """
+    Normalize raw vehicle data to conform to schema_vehicle.json.
+    
+    Args:
+        raw: Dict with raw string values from parse_wheelsize_vehicle_page
+        source: Source identifier (e.g., 'wheelsize')
+    
+    Returns:
+        Dict conforming to VehicleBrakeFitment schema
+    """
+    import re
+    
+    if source.lower() != "wheelsize":
+        raise NotImplementedError(f"normalize_vehicle: unsupported source '{source}'")
+    
+    def parse_float_mm(val):
+        """Parse float from string with mm unit."""
+        if val is None or val == "":
+            return None
+        try:
+            # Clean: strip, remove "mm", replace comma
+            cleaned = str(val).strip().replace("mm", "").replace("MM", "").replace(",", ".").strip()
+            return float(cleaned) if cleaned else None
+        except (ValueError, TypeError):
+            return None
+    
+    def parse_int_safe(val):
+        """Parse int from string."""
+        if val is None or val == "":
+            return None
+        try:
+            return int(str(val).strip())
+        except (ValueError, TypeError):
+            return None
+    
+    # 1. Vehicle identification (required)
+    make = raw.get("make", "").strip()
+    model = raw.get("model", "").strip()
+    if not make or not model:
+        raise ValueError("normalize_vehicle: 'make' and 'model' are required")
+    
+    generation = raw.get("generation", "").strip() or None
+    
+    # 2. Years (year_from required, year_to optional)
+    year_from = None
+    year_to = None
+    
+    # Try explicit year_from_raw
+    if raw.get("year_from_raw"):
+        year_from = parse_int_safe(raw["year_from_raw"])
+    
+    # Try explicit year_to_raw
+    if raw.get("year_to_raw"):
+        year_to = parse_int_safe(raw["year_to_raw"])
+    
+    # If not found, parse years_raw "2016-2020" or "2016-"
+    if year_from is None and raw.get("years_raw"):
+        years_match = re.match(r"(\d{4})\s*-\s*(\d{4})?", raw["years_raw"])
+        if years_match:
+            year_from = int(years_match.group(1))
+            if years_match.group(2):
+                year_to = int(years_match.group(2))
+    
+    if year_from is None:
+        raise ValueError("normalize_vehicle: 'year_from' is required but could not be parsed")
+    
+    # 3. Hub specifications (all required)
+    hub_bolt_hole_count = None
+    hub_bolt_circle_mm = None
+    
+    # Try explicit values first
+    if raw.get("hub_bolt_hole_count_raw"):
+        hub_bolt_hole_count = parse_int_safe(raw["hub_bolt_hole_count_raw"])
+    
+    if raw.get("hub_bolt_circle_mm_raw"):
+        hub_bolt_circle_mm = parse_float_mm(raw["hub_bolt_circle_mm_raw"])
+    
+    # If not found, parse from hub_bolt_pattern_raw "5x114.3"
+    if (hub_bolt_hole_count is None or hub_bolt_circle_mm is None) and raw.get("hub_bolt_pattern_raw"):
+        pattern_match = re.match(r"(\d+)\s*[xX]\s*([\d.]+)", raw["hub_bolt_pattern_raw"])
+        if pattern_match:
+            if hub_bolt_hole_count is None:
+                hub_bolt_hole_count = int(pattern_match.group(1))
+            if hub_bolt_circle_mm is None:
+                hub_bolt_circle_mm = float(pattern_match.group(2))
+    
+    if hub_bolt_hole_count is None or hub_bolt_circle_mm is None:
+        raise ValueError("normalize_vehicle: 'hub_bolt_hole_count' and 'hub_bolt_circle_mm' are required")
+    
+    # Center bore (required)
+    hub_center_bore_mm = parse_float_mm(raw.get("hub_center_bore_mm_raw"))
+    if hub_center_bore_mm is None:
+        raise ValueError("normalize_vehicle: 'hub_center_bore_mm' is required")
+    
+    # 4. Rotor OEM aggregation (optional)
+    rotor_diameters = []
+    rotor_thicknesses = []
+    
+    if raw.get("front_rotor_outer_diameter_mm_raw"):
+        d = parse_float_mm(raw["front_rotor_outer_diameter_mm_raw"])
+        if d:
+            rotor_diameters.append(d)
+    
+    if raw.get("rear_rotor_outer_diameter_mm_raw"):
+        d = parse_float_mm(raw["rear_rotor_outer_diameter_mm_raw"])
+        if d:
+            rotor_diameters.append(d)
+    
+    if raw.get("front_rotor_thickness_mm_raw"):
+        t = parse_float_mm(raw["front_rotor_thickness_mm_raw"])
+        if t:
+            rotor_thicknesses.append(t)
+    
+    if raw.get("rear_rotor_thickness_mm_raw"):
+        t = parse_float_mm(raw["rear_rotor_thickness_mm_raw"])
+        if t:
+            rotor_thicknesses.append(t)
+    
+    max_rotor_diameter_mm = max(rotor_diameters) if rotor_diameters else None
+    rotor_thickness_min_mm = min(rotor_thicknesses) if rotor_thicknesses else None
+    rotor_thickness_max_mm = max(rotor_thicknesses) if rotor_thicknesses else None
+    
+    # 5. Fields not provided by Wheel-Size (set to None)
+    knuckle_bolt_spacing_mm = None
+    knuckle_bolt_orientation_deg = None
+    wheel_inner_barrel_clearance_mm = None
+    
+    # 6. Build final dict conforming to schema
     return {
-        "make": raw.get("make"),
-        "model": raw.get("model"),
-        "generation": raw.get("generation"),
-        "year_from": raw.get("year_from"),
-        "year_to": raw.get("year_to"),
-        "hub_bolt_circle_mm": None,
-        "hub_bolt_hole_count": None,
-        "hub_center_bore_mm": None,
-        "knuckle_bolt_spacing_mm": None,
-        "knuckle_bolt_orientation_deg": None,
-        "max_rotor_diameter_mm": None,
-        "wheel_inner_barrel_clearance_mm": None,
-        "rotor_thickness_min_mm": None,
-        "rotor_thickness_max_mm": None
+        "make": make,
+        "model": model,
+        "generation": generation,
+        "year_from": year_from,
+        "year_to": year_to,
+        "hub_bolt_circle_mm": hub_bolt_circle_mm,
+        "hub_bolt_hole_count": hub_bolt_hole_count,
+        "hub_center_bore_mm": hub_center_bore_mm,
+        "knuckle_bolt_spacing_mm": knuckle_bolt_spacing_mm,
+        "knuckle_bolt_orientation_deg": knuckle_bolt_orientation_deg,
+        "max_rotor_diameter_mm": max_rotor_diameter_mm,
+        "wheel_inner_barrel_clearance_mm": wheel_inner_barrel_clearance_mm,
+        "rotor_thickness_min_mm": rotor_thickness_min_mm,
+        "rotor_thickness_max_mm": rotor_thickness_max_mm
     }

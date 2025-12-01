@@ -403,6 +403,113 @@ raw = parse_wheelsize_vehicle_page(html)
 
 ---
 
+### 3.6 Normalisation Véhicules (`normalize_vehicle`)
+
+**Status: ✅ Implémenté (Mission 6)**
+
+La fonction `normalize_vehicle` convertit les données RAW de Mission 5 en objets conformes à `schema_vehicle.json`.
+
+**Pipeline complet:**
+```python
+HTML → parse_wheelsize_vehicle_page() → raw dict (strings + unités)
+     → normalize_vehicle() → typed dict (schema-compliant)
+```
+
+**Règles de normalisation pour source="wheelsize":**
+
+**1. Identification véhicule (requis):**
+- `make`, `model`: Extraction depuis `raw["make"]`, `raw["model"]`
+  - Si absent ou vide → ValueError
+- `generation`: Optionnel, `raw["generation"]` ou `None`
+
+**2. Années (year_from requis, year_to optionnel):**
+- Stratégies multiples:
+  - Priorité 1: `year_from_raw` / `year_to_raw` explicites
+  - Priorité 2: Parse `years_raw` avec regex
+    - Format "2016-2020" → year_from=2016, year_to=2020
+    - Format "2017-" → year_from=2017, year_to=None (véhicule en production)
+- Conversion: string → `int`
+- Si year_from impossible à parser → ValueError
+
+**3. Spécifications moyeu (requis):**
+
+**hub_bolt_hole_count et hub_bolt_circle_mm:**
+- Stratégie 1: Champs explicites
+  - `hub_bolt_hole_count_raw` → int
+  - `hub_bolt_circle_mm_raw` → float (nettoyage "mm")
+- Stratégie 2: Parse depuis `hub_bolt_pattern_raw`
+  - Regex: `r"(\d+)\s*[xX]\s*([\d.]+)"`
+  - "5x114.3" → hole_count=5, circle_mm=114.3
+- Si échec → ValueError (champs requis)
+
+**hub_center_bore_mm:**
+- Parse `hub_center_bore_mm_raw` en float
+- Nettoyage automatique: supprime "mm", "MM", remplace "," par "."
+- Si échec → ValueError (champ requis)
+
+**4. Rotors OEM (optionnels - agrégation):**
+
+Inputs:
+- `front_rotor_outer_diameter_mm_raw`, `rear_rotor_outer_diameter_mm_raw`
+- `front_rotor_thickness_mm_raw`, `rear_rotor_thickness_mm_raw`
+
+Outputs:
+- `max_rotor_diameter_mm`: `max()` des diamètres AV/AR disponibles, ou `None`
+- `rotor_thickness_min_mm`: `min()` des épaisseurs, ou `None`
+- `rotor_thickness_max_mm`: `max()` des épaisseurs, ou `None`
+
+**5. Champs non fournis par Wheel-Size:**
+- `knuckle_bolt_spacing_mm = None`
+- `knuckle_bolt_orientation_deg = None`
+- `wheel_inner_barrel_clearance_mm = None`
+
+**Exemple de normalisation:**
+```python
+raw = {
+    "make": "Honda",
+    "model": "Civic",
+    "year_from_raw": "2016",
+    "year_to_raw": "2020",
+    "hub_bolt_pattern_raw": "5x114.3",
+    "hub_center_bore_mm_raw": "64.1mm",
+    "front_rotor_outer_diameter_mm_raw": "300mm",
+    "rear_rotor_outer_diameter_mm_raw": "282mm"
+}
+
+vehicle = normalize_vehicle(raw, "wheelsize")
+# Returns:
+{
+    "make": "Honda",
+    "model": "Civic",
+    "year_from": 2016,              # int
+    "year_to": 2020,                # int
+    "hub_bolt_hole_count": 5,       # parsed from pattern
+    "hub_bolt_circle_mm": 114.3,    # parsed from pattern
+    "hub_center_bore_mm": 64.1,     # float, mm stripped
+    "max_rotor_diameter_mm": 300.0, # max of front/rear
+    "knuckle_bolt_spacing_mm": None,
+    ...
+}
+```
+
+**Gestion des erreurs:**
+- `ValueError`: Champs requis manquants ou non parsables
+- `NotImplementedError`: Source non supportée (seulement "wheelsize" pour l'instant)
+
+**Tests validés:**
+- ✅ Normalisation complète avec rotors OEM
+- ✅ Année ouverte "2017-" → year_to=None
+- ✅ Sans rotors OEM → champs optionnels=None
+- ✅ PCD depuis champs explicites vs pattern
+- ✅ Erreurs: make/model manquants
+- ✅ Erreurs: PCD manquant
+- ✅ Erreurs: source non supportée
+- ✅ Parse années depuis "2018-2022"
+
+Total: 32 assertions validées
+
+---
+
 ## 4. Ingestion (`database/ingest_pipeline.py`)
 
 Entrée : fichiers `.jsonl` contenant des objets compatibles schémas JSON.  
