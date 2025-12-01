@@ -910,6 +910,112 @@ Ce clustering servira de base pour:
 
 ---
 
+### 5.2 Expansion massive des seeds rotors (Mission 10.1)
+
+**Status: ✅ Implémenté (Mission 10.1)**
+
+Extension du catalogue de sources de données pour multiplier le volume de rotors disponibles avant la sélection de rotors maîtres (M11).
+
+**Objectif:**
+- Enrichir la base de données avec une diversité maximale de rotors
+- Couvrir différents segments de marché (OEM, aftermarket, performance, racing)
+- Préparer un dataset suffisamment large pour M11 (sélection 15-25 maîtres)
+
+**Fichier modifié:** `data_scraper/exporters/urls_seed_rotors.csv`
+
+**Nouvelles sources ajoutées (24 URLs):**
+
+#### Aftermarket généraliste
+- **AutoDoc UK** - Fournisseur aftermarket européen
+- **Mister-Auto** - Plateforme aftermarket européenne
+- **CarParts.com** - Aftermarket US
+- **PartsGeek** - Aftermarket US
+- **AutoZone** - Chaîne retail US
+
+#### Spécialistes performance
+- **Summit Racing** - Performance parts retailer
+- **FCP Euro** - Spécialiste voitures européennes
+- **StopTech** - Spécialiste freinage performance
+- **PowerStop** - Kits freinage performance
+- **Wilwood** - Freinage racing
+
+#### Fabricants OEM/OE
+- **Otto Zimmermann** - Fabricant OE allemand
+- **Centric Parts** - Pièces de remplacement OE
+- **Wagner Brake** - Qualité OE aftermarket
+- **Raybestos** - Fournisseur OE
+- **TRW Aftermarket** - Marque OE aftermarket
+- **Bosch Automotive** - Bosch freinage
+- **ACDelco** - Pièces OE GM
+
+#### OEM constructeurs
+- **Ford Parts** - Pièces OEM Ford
+- **Mopar** - Pièces OEM Chrysler/Dodge/Jeep
+
+#### Racing/Motorsport
+- **AP Racing** - Freinage motorsport
+- **Ferodo Racing** - Produits freinage course
+- **EBC Brakes** - Gamme performance/racing
+
+#### Fabricants spécialisés
+- **Brembo Europe** - Catalogue OEM Brembo complet
+- **DBA Australia** - Catalogue principal DBA
+
+**Impact attendu:**
+- **Avant M10.1:** ~4 seed URLs → volume limité de rotors
+- **Après M10.1:** 28 seed URLs → couverture géographique et segmentaire maximale
+
+**Segmentation marché couverte:**
+
+| Segment | Sources | Couverture |
+|---------|---------|-----------|
+| **OEM/OE quality** | Zimmermann, Centric, Wagner, Raybestos, TRW, Bosch, ACDelco | ✅ Complete |
+| **OEM constructeurs** | Ford, Mopar | ✅ US brands |
+| **Aftermarket retail** | AutoDoc, Mister-Auto, CarParts, PartsGeek, AutoZone | ✅ EU + US |
+| **Performance street** | StopTech, PowerStop, EBC, DBA | ✅ Complete |
+| **Racing** | Wilwood, AP Racing, Ferodo, Brembo | ✅ Complete |
+| **Spécialistes** | FCP Euro, Summit Racing | ✅ Niches |
+
+**Zones géographiques:**
+- 🇪🇺 **Europe:** AutoDoc UK, Mister-Auto, Brembo EU, Zimmermann, TRW
+- 🇺🇸 **USA:** CarParts, PartsGeek, Summit, AutoZone, Ford, Mopar
+- 🇦🇺 **Australia:** DBA
+- 🌍 **International:** Bosch, ACDelco, Wilwood, AP Racing
+
+**Déduplication garantie:**
+Grâce à M9 (déduplication V1), les rotors avec même `(brand, catalog_ref)` ne sont pas dupliqués même si présents dans plusieurs sources.
+
+**Usage:**
+```bash
+# Scraping avec seeds étendus
+python scrape_and_ingest.py --only rotors
+
+# Le pipeline M7 + M9:
+# 1. Lit urls_seed_rotors.csv (28 seeds)
+# 2. Scrape chaque URL
+# 3. Parse et normalise
+# 4. Déduplique (M9)
+# 5. Insère dans DB
+```
+
+**Bénéfices pour M11:**
+1. **Diversité géométrique:** Rotors de 250-400mm, 18-34mm épaisseur
+2. **Couverture applications:** Compact, midsize, SUV, sport, racing
+3. **Variété marques:** OEM, premium, budget, racing
+4. **Robustesse clusters (M10):** Clusters avec plus de membres = centroids plus représentatifs
+
+**Limitations connues:**
+- Certaines URLs peuvent être des landing pages nécessitant navigation supplémentaire
+- Pagination pas toujours automatique (peut nécessiter seeds spécifiques par page)
+- Sites dynamiques (JavaScript) peuvent nécessiter scraping avancé (hors scope V1)
+
+**Évolutions futures:**
+- M10.2: Scraping multi-list (parcours automatique pagination)
+- M10.3: Scraping systématique par véhicules (URLs spécifiques make/model)
+- M10.4: Scraping PDF catalogs (Zimmermann, StopTech) via Vision
+
+---
+
 ## 6. Non-objectifs V1
 
 Explicitement hors scope pour l’instant :
