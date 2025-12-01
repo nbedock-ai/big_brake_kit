@@ -512,16 +512,128 @@ Total: 32 assertions validées
 
 ## 4. Ingestion (`database/ingest_pipeline.py`)
 
+**Status:** Implémenté (Mission 7)
+
+### 4.1 Pipeline Principal - `ingest_all()`
+
+Point d'entrée unique pour l'ingestion de toutes les données depuis les seeds URL.
+
+**Architecture:**
+```python
+CSV Seeds → ingest_all() → Scrapers → Normalizers → SQLite DB
+```
+
+**Flux complet:**
+1. Lecture des fichiers seed CSV depuis `data_seed_url.txt`
+2. Itération sur les URLs par groupe (rotors, pads, vehicles)
+3. Pour chaque URL:
+   - Fetch HTML avec `fetch_html(url)`
+   - Parse avec `parse_*_page(html)`
+   - Normalize avec `normalize_*(raw, source)`
+   - Validate champs requis
+   - Insert dans DB avec `insert_*(conn, obj)`
+4. Commit et statistiques finales
+
+**Utilisation:**
+```python
+# Ingérer tous les groupes
+from database.ingest_pipeline import ingest_all
+ingest_all()
+
+# Ingérer un groupe spécifique
+ingest_all(group="vehicles")
+ingest_all(group="rotors")
+ingest_all(group="pads")
+```
+
+**CLI:**
+```bash
+# Tout ingérer
+python -m database.ingest_pipeline
+
+# Groupe spécifique
+python -m database.ingest_pipeline vehicles
+python -m database.ingest_pipeline rotors
+python -m database.ingest_pipeline pads
+```
+
+### 4.2 Format des Seeds
+
+**Structure CSV:**
+```csv
+source,url,notes
+dba,https://www.dba.com.au/product/...,note explicative
+wheel-size,https://www.wheel-size.com/size/honda/civic/,example family
+```
+
+**Fichiers seed:**
+- `data_scraper/exporters/urls_seed_rotors.csv` → Rotors DBA/Brembo
+- `data_scraper/exporters/urls_seed_pads.csv` → Pads EBC
+- `data_scraper/exporters/urls_seed_vehicles.csv` → Vehicles Wheel-Size
+
+**Index:** `data_seed_url.txt` référence tous les CSV actifs
+
+### 4.3 Helpers d'Ingestion
+
+**load_seed_csv_paths():**
+- Parse `data_seed_url.txt`
+- Retourne dict: `{"rotors": [paths], "pads": [paths], "vehicles": [paths]}`
+
+**iter_seed_urls(kind: str):**
+- Itère sur les URLs d'un groupe
+- Yield: `(source, url, notes)`
+
+**process_rotor_seed(conn, source, url):**
+- Fetch → parse_dba_rotor_page → validate → insert
+- Retourne nombre d'insertions (0 ou 1)
+
+**process_pad_seed(conn, source, url):**
+- Fetch → parse_ebc_pad_page → validate → insert
+
+**process_vehicle_seed(conn, source, url):**
+- Fetch → parse_wheelsize_vehicle_page → normalize_vehicle → validate → insert
+
+### 4.4 Gestion des Erreurs
+
+**Par URL:**
+- Try/catch autour de chaque fetch/parse/insert
+- Erreurs loggées dans console
+- Pipeline continue (ne s'arrête jamais)
+- Compteur d'erreurs dans statistiques finales
+
+**Validation avant insertion:**
+- Reject: None, dict vide, champs requis manquants
+- Pas de déduplication intelligente (sera M9)
+
+### 4.5 Ingestion JSONL (Legacy)
+
+**ingest_jsonl(path, table):**
 Entrée : fichiers `.jsonl` contenant des objets compatibles schémas JSON.  
 Pipeline :
 
-1. Lecture ligne à ligne.
-2. `json.loads`.
-3. Insertion dans la table cible via `insert_rotor` / `insert_pad` / `insert_vehicle`.
-4. Commit.
+1. Lecture ligne à ligne
+2. `json.loads`
+3. Insertion dans la table cible via `insert_rotor` / `insert_pad` / `insert_vehicle`
+4. Commit
 
-V1 ne gère pas les upserts / duplicates.  
-Ce sera traité dans un module ultérieur de “cleaning / dedup”.
+**Note:** V1 ne gère pas les upserts / duplicates.  
+Ce sera traité dans un module ultérieur de "cleaning / dedup".
+
+### 4.6 Tests Validés
+
+**test_ingest_pipeline.py:**
+- load_seed_csv_paths - parse data_seed_url.txt
+- iter_seed_urls - itère sur CSV seeds
+- insert_* functions - insertion DB en mémoire
+- Schema validation - tables rotors/pads/vehicles
+
+Total: 14 assertions validées
+
+**Integration tests:**
+Nécessitent accès réseau, à lancer manuellement:
+```bash
+python -m database.ingest_pipeline vehicles
+```
 
 ---
 
