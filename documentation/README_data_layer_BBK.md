@@ -635,6 +635,75 @@ Nécessitent accès réseau, à lancer manuellement:
 python -m database.ingest_pipeline vehicles
 ```
 
+### 4.7 CLI Script - scrape_and_ingest.py
+
+**Status: ✅ Implémenté (Mission 8)**
+
+Script wrapper simplifié à la racine du projet pour piloter `ingest_all()` depuis la ligne de commande.
+
+**Localisation:** `scrape_and_ingest.py` (racine du projet)
+
+**Syntaxe:**
+```bash
+# Ingérer tous les groupes (comportement par défaut)
+python scrape_and_ingest.py
+
+# Sélection explicite du groupe
+python scrape_and_ingest.py --only all        # Tous les groupes
+python scrape_and_ingest.py --only rotors     # Rotors uniquement
+python scrape_and_ingest.py --only pads       # Pads uniquement
+python scrape_and_ingest.py --only vehicles   # Vehicles uniquement
+```
+
+**Arguments:**
+- `--only` : Choix du groupe à ingérer
+  - Valeurs possibles : `all`, `rotors`, `pads`, `vehicles`
+  - Défaut : `all` (si omis)
+
+**Mapping vers ingest_all:**
+- `--only all` ou sans argument → `ingest_all(group=None)` - ingère tout
+- `--only rotors` → `ingest_all(group="rotors")` - rotors uniquement
+- `--only pads` → `ingest_all(group="pads")` - pads uniquement
+- `--only vehicles` → `ingest_all(group="vehicles")` - vehicles uniquement
+
+**Implémentation:**
+- Utilise `argparse` pour parsing des arguments
+- Fonction `main(argv)` testable (accepte liste d'args pour tests unitaires)
+- Logging minimaliste (affichage groupe cible + confirmation)
+
+**Tests validés:**
+- ✅ Sans argument → groupe=None
+- ✅ --only all → groupe=None
+- ✅ --only rotors → groupe='rotors'
+- ✅ --only pads → groupe='pads'
+- ✅ --only vehicles → groupe='vehicles'
+
+Total: 10 assertions validées (test_scrape_and_ingest_cli.py)
+
+**Exemple d'utilisation:**
+```bash
+# Ingérer seulement les véhicules depuis seeds
+python scrape_and_ingest.py --only vehicles
+```
+
+**Output:**
+```
+[CLI] Starting ingestion for: vehicles
+============================================================
+BIGBRAKEKIT - INGESTION PIPELINE
+============================================================
+...
+[VEHICLE] ✓ Inserted: Honda Civic (2016-2020)
+...
+[CLI] Ingestion complete
+```
+
+**Avantages CLI vs Python API:**
+- Facilite automatisation shell/batch
+- Pas besoin d'ouvrir Python REPL
+- Meilleur pour scripts cron/CI-CD
+- Interface unifiée pour utilisateurs non-développeurs
+
 ---
 
 ## 5. Non-objectifs V1
