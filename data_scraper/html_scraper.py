@@ -1,5 +1,6 @@
 # data_scraper/html_scraper.py
 
+import re
 import requests
 from bs4 import BeautifulSoup
 
@@ -16,13 +17,150 @@ def fetch_html(url: str) -> str:
 #  Parsing — DBA Rotors
 # ------------------------------------------------------------
 
-def parse_dba_rotor_page(html: str) -> list[dict]:
+def parse_dba_rotor_page(html: str) -> dict:
+    """
+    Parse a DBA rotor product page and extract rotor specifications.
+    
+    Args:
+        html: HTML content of a DBA rotor product page
+    
+    Returns:
+        Normalized rotor dict conforming to schema_rotor.json
+    """
     soup = BeautifulSoup(html, "html.parser")
-    results = []
-
-    # TODO: Extract table rows / spec blocks
-    # Each result must map raw fields (strings) with minimal cleanup.
-    return results
+    raw = {}
+    
+    def clean_value(text: str) -> str:
+        """Remove units and special characters from specification values."""
+        if not text:
+            return ""
+        # Remove common units and symbols
+        text = text.strip()
+        text = text.replace("mm", "").replace("Ø", "").replace("°", "")
+        text = text.replace("\t", "").replace("\n", "")
+        return text.strip()
+    
+    # Strategy 1: Look for specification table (most common in product pages)
+    # Typical structure: <table> with <tr><td>Label</td><td>Value</td></tr>
+    tables = soup.find_all('table')
+    for table in tables:
+        rows = table.find_all('tr')
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            if len(cells) >= 2:
+                label = cells[0].get_text().strip().lower()
+                value = clean_value(cells[1].get_text())
+                
+                # Map common label variations to our field names
+                # Check PCD/bolt circle FIRST before checking for "diameter" alone
+                if 'pcd' in label or 'bolt circle' in label or 'pitch circle' in label:
+                    raw['bolt_circle_mm'] = value
+                elif 'center bore' in label or 'centre bore' in label or 'hub bore' in label:
+                    raw['center_bore_mm'] = value
+                elif 'outer diameter' in label or (('diameter' in label or 'rotor diameter' in label) and 'bolt' not in label and 'pcd' not in label):
+                    raw['outer_diameter_mm'] = value
+                elif 'thickness' in label and 'nominal' in label:
+                    raw['nominal_thickness_mm'] = value
+                elif 'thickness' in label and 'hat' not in label and 'overall' not in label and 'rotor' not in label:
+                    raw['nominal_thickness_mm'] = value
+                elif 'hat height' in label or 'hat-height' in label:
+                    raw['hat_height_mm'] = value
+                elif 'overall height' in label or 'overall-height' in label or 'total height' in label:
+                    raw['overall_height_mm'] = value
+                elif 'bolt hole' in label or 'hole count' in label or 'stud holes' in label:
+                    raw['bolt_hole_count'] = value
+                elif 'ventilation' in label or 'vented' in label:
+                    raw['ventilation_type'] = value.lower()
+                elif 'directional' in label:
+                    raw['directionality'] = value.lower()
+                elif 'weight' in label:
+                    raw['rotor_weight_kg'] = value
+                elif 'mounting' in label:
+                    raw['mounting_type'] = value.lower()
+                elif 'offset' in label:
+                    raw['offset_mm'] = value
+                elif 'part' in label or 'ref' in label or 'sku' in label or 'code' in label:
+                    raw['ref'] = value
+    
+    # Strategy 2: Look for definition lists (dl/dt/dd)
+    dls = soup.find_all('dl')
+    for dl in dls:
+        terms = dl.find_all('dt')
+        definitions = dl.find_all('dd')
+        for dt, dd in zip(terms, definitions):
+            label = dt.get_text().strip().lower()
+            value = clean_value(dd.get_text())
+            
+            # Check PCD first
+            if 'pcd' in label or 'bolt circle' in label:
+                raw['bolt_circle_mm'] = value
+            elif 'diameter' in label and 'bolt' not in label:
+                raw['outer_diameter_mm'] = value
+            elif 'thickness' in label:
+                raw['nominal_thickness_mm'] = value
+            elif 'hat height' in label:
+                raw['hat_height_mm'] = value
+            elif 'overall height' in label:
+                raw['overall_height_mm'] = value
+            elif 'center bore' in label or 'centre bore' in label:
+                raw['center_bore_mm'] = value
+            elif 'bolt hole' in label:
+                raw['bolt_hole_count'] = value
+            elif 'part' in label or 'ref' in label:
+                raw['ref'] = value
+    
+    # Strategy 3: Look for divs/spans with data attributes
+    spec_divs = soup.find_all(['div', 'span'], class_=lambda x: x and ('spec' in x.lower() or 'product' in x.lower()))
+    for div in spec_divs:
+        # Check for data attributes
+        if div.has_attr('data-diameter'):
+            raw['outer_diameter_mm'] = clean_value(div.get('data-diameter'))
+        if div.has_attr('data-thickness'):
+            raw['nominal_thickness_mm'] = clean_value(div.get('data-thickness'))
+        if div.has_attr('data-hat-height'):
+            raw['hat_height_mm'] = clean_value(div.get('data-hat-height'))
+    
+    # Extract product reference from title, h1, or product code
+    if 'ref' not in raw:
+        # Try h1 title
+        h1 = soup.find('h1')
+        if h1:
+            title = h1.get_text().strip()
+            # Look for DBA part numbers (usually format: DBA####X or DBA#####XY)
+            # Find all matches and take the longest one (most specific)
+            matches = re.findall(r'DBA\s*\d+[A-Z0-9]*', title, re.IGNORECASE)
+            if matches:
+                # Take the longest match (most specific product code)
+                longest_match = max(matches, key=lambda x: len(x.replace(' ', '')))
+                raw['ref'] = longest_match.replace(' ', '')
+        
+        # Try product code meta or div
+        product_code = soup.find(['div', 'span'], class_=lambda x: x and 'product-code' in x.lower())
+        if product_code:
+            raw['ref'] = clean_value(product_code.get_text())
+    
+    # Set defaults for fields that might not be in HTML
+    if 'ventilation_type' not in raw:
+        # Try to infer from product title or description
+        title_text = soup.find('h1')
+        if title_text:
+            title_lower = title_text.get_text().lower()
+            if 'slotted' in title_lower and 'drilled' in title_lower:
+                raw['ventilation_type'] = 'drilled_slotted'
+            elif 'slotted' in title_lower:
+                raw['ventilation_type'] = 'slotted'
+            elif 'drilled' in title_lower:
+                raw['ventilation_type'] = 'drilled'
+            elif 'vented' in title_lower:
+                raw['ventilation_type'] = 'vented'
+            else:
+                raw['ventilation_type'] = 'vented'  # Default assumption
+    
+    if 'directionality' not in raw:
+        raw['directionality'] = 'non_directional'  # Common default for DBA
+    
+    # Normalize and return
+    return normalize_rotor(raw, source="dba")
 
 # ------------------------------------------------------------
 #  Parsing — Brembo Rotors

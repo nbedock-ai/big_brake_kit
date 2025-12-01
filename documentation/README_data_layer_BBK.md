@@ -184,6 +184,54 @@ Principe :
 - `parse_*` reste proche du HTML brut (colonnes, labels).  
 - `normalize_*` produit des objets strictement conformes aux schémas JSON.
 
+### 3.3 Parsing DBA Rotors (`parse_dba_rotor_page`)
+
+**Status: ✅ Implémenté (Mission 3)**
+
+La fonction `parse_dba_rotor_page` extrait les spécifications d'un rotor depuis une page produit DBA et retourne un objet normalisé.
+
+**Stratégies d'extraction (multi-méthodes):**
+
+1. **Tables HTML** (`<table>` avec `<tr><td>Label</td><td>Value</td></tr>`)
+   - Méthode principale pour la plupart des pages produit
+   - Détecte automatiquement les labels de spécifications
+
+2. **Listes de définitions** (`<dl>/<dt>/<dd>`)
+   - Alternative courante pour pages de catalogue
+   - Mapping flexible des termes techniques
+
+3. **Attributs data** (`data-diameter`, `data-thickness`, etc.)
+   - Pour pages modernes avec données structurées
+
+**Nettoyage automatique:**
+- Suppression unités: "mm", "Ø", "°"
+- Normalisation espaces et caractères spéciaux
+- Mapping variations de labels (ex: "Centre Bore" → "center_bore_mm")
+
+**Extraction catalog_ref:**
+- Recherche pattern DBA (ex: "DBA42134S", "DBA52930XD")
+- Préfère le code le plus long/spécifique dans le titre
+- Fallback sur éléments `.product-code`
+
+**Inférence ventilation_type:**
+- Détecte mots-clés dans titre: "slotted", "drilled", "vented"
+- Combine "drilled and slotted" → "drilled_slotted"
+- Default: "vented" si non spécifié
+
+**Exemple:**
+```python
+html = "<html><h1>DBA 4000 T3 Slotted DBA42134S</h1>...</html>"
+rotor = parse_dba_rotor_page(html)
+# Returns normalized dict with all fields typed correctly
+```
+
+**Tests validés:**
+- ✅ Extraction table HTML
+- ✅ Extraction definition list
+- ✅ Calcul automatique offset_mm
+- ✅ Inférence ventilation depuis titre
+- ✅ Extraction catalog_ref (codes complets)
+
 ---
 
 ## 4. Ingestion (`database/ingest_pipeline.py`)
