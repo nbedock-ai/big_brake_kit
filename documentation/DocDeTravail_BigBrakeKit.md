@@ -107,6 +107,55 @@ Pas de stockage massif.
 
 ---
 
+## **1.6 Couche Hydraulique, Bracket Geometry et Fittings**
+
+### **1.6.1 Hydraulique (segments S/M/L)**
+
+Les étriers 4P et 6P existeront en trois variantes hydrauliques basées sur la surface totale des pistons :
+- **S** : petite surface, pour véhicules légers ou maître-cylindre petit diamètre
+- **M** : surface standard, cœur de marché
+- **L** : grande surface, pour berlines lourdes / SUV
+
+La classification est déterminée par la variable **surface totale des pistons (mm²)** de l'étrier OEM du véhicule.
+
+**Fichiers:**
+- `hydraulics/segments.json` - Définition des plages S/M/L
+- `hydraulics/vehicle_segment_map.json` - Mapping véhicule → segment hydraulique
+- `caliper_design/hydraulic_config.json` - Configuration pistons par étrier (2P/4P/6P) et segment
+
+### **1.6.2 Bracket Geometry**
+
+Variables nécessaires pour générer un bracket CNC correct :
+- Espacement des boulons knuckle (mm)
+- Orientation des boulons knuckle (deg)
+- Offset du centre rotor (mm)
+- Dégagement barillet roue intérieur (mm)
+- Diamètre rotor maximum possible (mm)
+- Épaisseur rotor min/max (mm)
+- Type de montage (axial/radial)
+- Dégagement étrier (mm)
+
+**Fichiers:**
+- `bracket_geometry/schema_bracket_geometry.json` - Schéma JSON des variables
+- `bracket_geometry/normalize_bracket_geometry.py` - Normalisation des données raw
+- `bracket_geometry/README_bracket_geometry.md` - Documentation
+
+### **1.6.3 Brake Line Fittings**
+
+Standards de raccords fournis avec chaque kit :
+- M10x1 banjo
+- M10x1.25 banjo
+- M12x1 banjo
+- Inverted flare
+
+Les fittings sont universels et ne dépendent pas du véhicule.
+
+**Fichiers:**
+- `fittings/catalog.json` - Catalogue des raccords standards
+- `fittings/README_fittings.md` - Documentation
+
+---
+
 ## 1.x Contraintes hydrauliques
 
 Chaque famille d’étriers (2P, 4P, 6P) existera en plusieurs variantes hydrauliques correspondant à des surfaces totales de pistons différentes. Le corps d’étrier reste identique, mais le diamètre des pistons change pour respecter le rapport hydraulique du véhicule (surface pistons / surface maître-cylindre).

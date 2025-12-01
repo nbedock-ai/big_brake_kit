@@ -211,3 +211,33 @@ Pour garantir une sensation de pédale correcte après le passage 2P → 4P ou 4
 
 La base V1 reste centrée sur : rotors, plaquettes, géométrie véhicule.
 La base V2 ajoutera : hydraulique segmentée et catalogue de fittings.
+
+---
+
+## 9. Données additionnelles implémentées (V1.1)
+
+**Status: ✅ Implémenté**
+
+Les couches suivantes ont été ajoutées à la structure du projet :
+
+### **9.1 Hydraulics**
+- `hydraulics/segments.json` - Définition des segments S/M/L (surface pistons)
+- `hydraulics/vehicle_segment_map.json` - Mapping véhicule → segment hydraulique
+- `hydraulics/README_hydraulics.md` - Documentation hydraulique
+- `caliper_design/hydraulic_config.json` - Configuration pistons par étrier et segment
+
+### **9.2 Bracket Geometry**
+- `bracket_geometry/schema_bracket_geometry.json` - Schéma JSON des variables géométriques
+- `bracket_geometry/normalize_bracket_geometry.py` - Normalisation des données raw
+- `bracket_geometry/README_bracket_geometry.md` - Documentation
+
+Variables couvertes :
+- Espacement boulons knuckle, orientation, offset rotor
+- Dégagements (roue, étrier), diamètres/épaisseurs rotors
+- Type de montage (axial/radial)
+
+### **9.3 Brake Line Fittings**
+- `fittings/catalog.json` - Standards de raccords (M10x1, M10x1.25, M12x1, inverted flare)
+- `fittings/README_fittings.md` - Documentation
+
+Ces couches sont prêtes pour les missions M2-M16.

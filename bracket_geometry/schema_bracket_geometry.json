@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BracketGeometry",
+  "type": "object",
+  "properties": {
+    "knuckle_bolt_spacing_mm": { "type": ["number", "null"] },
+    "knuckle_bolt_orientation_deg": { "type": ["number", "null"] },
+    "rotor_center_offset_mm": { "type": ["number", "null"] },
+    "wheel_inner_barrel_clearance_mm": { "type": ["number", "null"] },
+    "max_rotor_diameter_mm": { "type": ["number", "null"] },
+    "rotor_thickness_min_mm": { "type": ["number", "null"] },
+    "rotor_thickness_max_mm": { "type": ["number", "null"] },
+    "is_axial_mount": { "type": ["boolean", "null"] },
+    "is_radial_mount": { "type": ["boolean", "null"] },
+    "caliper_clearance_mm": { "type": ["number", "null"] }
+  },
+  "additionalProperties": false
+}
