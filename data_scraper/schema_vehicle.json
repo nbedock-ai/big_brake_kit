@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VehicleBrakeFitment",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "make": { "type": "string" },
+    "model": { "type": "string" },
+    "generation": { "type": ["string", "null"] },
+    "year_from": { "type": "integer" },
+    "year_to": { "type": ["integer", "null"] },
+
+    "hub_bolt_circle_mm": { "type": "number" },
+    "hub_bolt_hole_count": { "type": "integer" },
+    "hub_center_bore_mm": { "type": "number" },
+
+    "knuckle_bolt_spacing_mm": { "type": ["number", "null"] },
+    "knuckle_bolt_orientation_deg": { "type": ["number", "null"] },
+
+    "max_rotor_diameter_mm": { "type": ["number", "null"] },
+    "wheel_inner_barrel_clearance_mm": { "type": ["number", "null"] },
+    "rotor_thickness_min_mm": { "type": ["number", "null"] },
+    "rotor_thickness_max_mm": { "type": ["number", "null"] }
+  },
+  "required": [
+    "make",
+    "model",
+    "year_from",
+    "year_to",
+    "hub_bolt_circle_mm",
+    "hub_bolt_hole_count",
+    "hub_center_bore_mm"
+  ]
+}

@@ -1,0 +1,20 @@
+data_seed_url.txt
+
+1. data_scraper/exporters/urls_seed_rotors.csv
+# data_scraper/exporters/urls_seed_rotors.csv
+source,url,notes
+dba,https://www.dba.com.au/product-category/4x4-performance-brake-rotors/,4x4 performance range
+dba,https://www.dba.com.au/product-category/street-performance-rotors/,street performance range
+brembo,https://www.bremboparts.com/europe/fr/catalogue/car/disc,generic entry point - model-specific URLs to be expanded
+
+2. data_scraper/exporters/urls_seed_pads.csv
+# data_scraper/exporters/urls_seed_pads.csv
+source,url,notes
+ebc,https://ebcbrakes.com/products/car-brakes/pad-finder/,pad finder main entry
+
+3. data_scraper/exporters/urls_seed_vehicles.csv
+# data_scraper/exporters/urls_seed_vehicles.csv
+source,url,notes
+wheel-size,https://www.wheel-size.com/size/honda/civic/,example family - civic
+wheel-size,https://www.wheel-size.com/size/bmw/3-series/,example family - 3-series
+wheel-size,https://www.wheel-size.com/size/volkswagen/golf/,example family - golf

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RotorSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "outer_diameter_mm": { "type": "number" },
+    "nominal_thickness_mm": { "type": "number" },
+    "hat_height_mm": { "type": "number" },
+    "overall_height_mm": { "type": "number" },
+    "center_bore_mm": { "type": "number" },
+    "bolt_circle_mm": { "type": "number" },
+    "bolt_hole_count": { "type": "integer" },
+    "ventilation_type": {
+      "type": "string",
+      "enum": ["solid", "vented", "drilled", "slotted", "drilled_slotted"]
+    },
+    "directionality": {
+      "type": "string",
+      "enum": ["non_directional", "left", "right"]
+    },
+    "offset_mm": { "type": ["number", "null"] },
+
+    "rotor_weight_kg": { "type": ["number", "null"] },
+    "mounting_type": {
+      "type": ["string", "null"],
+      "enum": ["1_piece", "2_piece_bolted", "2_piece_floating", null]
+    },
+    "oem_part_number": { "type": ["string", "null"] },
+    "pad_swept_area_mm2": { "type": ["number", "null"] },
+
+    "brand": { "type": "string" },
+    "catalog_ref": { "type": "string" }
+  },
+  "required": [
+    "outer_diameter_mm",
+    "nominal_thickness_mm",
+    "hat_height_mm",
+    "overall_height_mm",
+    "center_bore_mm",
+    "bolt_circle_mm",
+    "bolt_hole_count",
+    "ventilation_type",
+    "directionality",
+    "brand",
+    "catalog_ref"
+  ]
+}
