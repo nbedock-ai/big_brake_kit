@@ -1,28 +1,28 @@
-source,url,notes
-dba,https://www.dba.com.au/product-category/4x4-performance-brake-rotors/,4x4 performance range
-dba,https://www.dba.com.au/product-category/street-performance-rotors/,street performance range
-brembo,https://www.bremboparts.com/europe/fr/catalogue/car/disc,generic entry point - model-specific URLs to be expanded
-autodoc,https://www.autodoc.co.uk/car-parts/brake-disc-10132,UK aftermarket supplier
-mister-auto,https://www.mister-auto.com/brake-discs/,European aftermarket
-carparts,https://www.carparts.com/brake-disc,US aftermarket
-partsgeek,https://www.partsgeek.com/parts/brake-rotor.html,US aftermarket
-summit,https://www.summitracing.com/search/part-type/brake-rotors,Performance parts retailer
-fcpeuro,https://www.fcpeuro.com/products/?keywords=brake+rotor,European car specialist
-brembo-eu,https://www.bremboparts.com/europe/en/catalogue/discs,Brembo OEM catalog
-dba-au,https://www.dba.com.au/parts/search-products/?category=disc-rotors,DBA main catalog
-ebc,https://ebcbrakes.com/products/brake-discs/,EBC brake discs catalog
-zimmermann,https://www.otto-zimmermann.de/en/products/brake-discs/,OE German manufacturer
-stoptech,https://www.stoptech.com/products/brake-rotors/,Performance brake specialist
-powerstop,https://www.powerstop.com/product-category/brake-rotors/,Performance brake kits
-centric,https://centricparts.com/catalog/brake-rotors,OE replacement parts
-wagner,https://www.wagnerbrake.com/products/brake-rotors.html,OE quality aftermarket
-raybestos,https://www.raybestos.com/brake-rotors,OE supplier
-trw,https://www.trwaftermarket.com/en/catalogue/braking/disc-brakes/brake-discs/,OE aftermarket brand
-bosch,https://www.boschautoparts.com/en/auto/brakes/brake-rotors,Bosch automotive
-acdelco,https://www.acdelco.com/auto-parts/brakes/brake-rotors,GM OE parts
-ford,https://parts.ford.com/shop/en/us/brake-rotors,Ford OEM parts
-mopar,https://www.mopar.com/en-us/shop/parts/brakes/brake-rotors.html,Chrysler OEM parts
-wilwood,https://www.wilwood.com/BrakeRotors/,Racing brake specialist
-apracing,https://apracing.com/products/race-car/brake-discs,Motorsport brake specialist
-ferodo,https://www.ferodoracing.com/products/brakes/discs/,Racing brake products
-autozone,https://www.autozone.com/brakes-and-traction-control/brake-rotor,US retail chain
+source,url,notes,page_type
+dba,https://www.dba.com.au/product-category/4x4-performance-brake-rotors/,4x4 performance range,product
+dba,https://www.dba.com.au/product-category/street-performance-rotors/,street performance range,product
+brembo,https://www.bremboparts.com/europe/fr/catalogue/car/disc,generic entry point - model-specific URLs to be expanded,product
+autodoc,https://www.autodoc.co.uk/car-parts/brake-disc-10132,UK aftermarket supplier - CATALOG PAGE,list
+mister-auto,https://www.mister-auto.com/brake-discs/,European aftermarket - CATALOG PAGE,list
+carparts,https://www.carparts.com/brake-disc,US aftermarket,product
+partsgeek,https://www.partsgeek.com/parts/brake-rotor.html,US aftermarket,product
+summit,https://www.summitracing.com/search/part-type/brake-rotors,Performance parts retailer,product
+fcpeuro,https://www.fcpeuro.com/products/?keywords=brake+rotor,European car specialist,product
+brembo-eu,https://www.bremboparts.com/europe/en/catalogue/discs,Brembo OEM catalog,product
+dba-au,https://www.dba.com.au/parts/search-products/?category=disc-rotors,DBA main catalog,product
+ebc,https://ebcbrakes.com/products/brake-discs/,EBC brake discs catalog,product
+zimmermann,https://www.otto-zimmermann.de/en/products/brake-discs/,OE German manufacturer,product
+stoptech,https://www.stoptech.com/products/brake-rotors/,Performance brake specialist,product
+powerstop,https://www.powerstop.com/product-category/brake-rotors/,Performance brake kits - CATALOG PAGE,list
+centric,https://centricparts.com/catalog/brake-rotors,OE replacement parts,product
+wagner,https://www.wagnerbrake.com/products/brake-rotors.html,OE quality aftermarket,product
+raybestos,https://www.raybestos.com/brake-rotors,OE supplier,product
+trw,https://www.trwaftermarket.com/en/catalogue/braking/disc-brakes/brake-discs/,OE aftermarket brand,product
+bosch,https://www.boschautoparts.com/en/auto/brakes/brake-rotors,Bosch automotive,product
+acdelco,https://www.acdelco.com/auto-parts/brakes/brake-rotors,GM OE parts,product
+ford,https://parts.ford.com/shop/en/us/brake-rotors,Ford OEM parts,product
+mopar,https://www.mopar.com/en-us/shop/parts/brakes/brake-rotors.html,Chrysler OEM parts,product
+wilwood,https://www.wilwood.com/BrakeRotors/,Racing brake specialist,product
+apracing,https://apracing.com/products/race-car/brake-discs,Motorsport brake specialist,product
+ferodo,https://www.ferodoracing.com/products/brakes/discs/,Racing brake products,product
+autozone,https://www.autozone.com/brakes-and-traction-control/brake-rotor,US retail chain,product

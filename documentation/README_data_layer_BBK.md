@@ -1016,6 +1016,215 @@ python scrape_and_ingest.py --only rotors
 
 ---
 
+### 5.3 Scraping multi-list - Catalogues rotors (Mission 10.2)
+
+**Status: ✅ POC Framework implémenté (nécessite analyse manuelle sites pour production)**
+
+Extension du pipeline de scraping pour extraire **plusieurs rotors par page catalogue**, multipliant le volume de données disponibles.
+
+**Objectif:**
+- Exploiter les URLs catalogues de M10.1 (autodoc, mister-auto, powerstop)
+- Passer de ~50 rotors à plusieurs centaines
+- Alimenter M10 (clustering) et M11 (sélection maîtres) avec dataset robuste
+
+---
+
+#### Architecture
+
+**Nouveau module:** `data_scraper/html_rotor_list_scraper.py`
+
+**Interface générique:**
+```python
+def parse_rotor_list_page(html: str, source: str) -> List[Dict]:
+    """
+    Parse une page catalogue multi-produits.
+    
+    Returns: Liste de raw dicts avec:
+    - brand_raw, catalog_ref_raw (minimum)
+    - outer_diameter_mm_raw, nominal_thickness_mm_raw (idéal)
+    """
+```
+
+**Parsers spécifiques (templates POC):**
+- `parse_autodoc_list()` - AutoDoc UK
+- `parse_misterauto_list()` - Mister-Auto FR
+- `parse_powerstop_list()` - PowerStop US
+
+**Helpers fournis:**
+- `SimpleTableParser` - Extraction HTML tables
+- `extract_dimension(text, type)` - Parse "280mm" → 280.0
+- `clean_text(text)` - Nettoyage whitespace/entities
+
+---
+
+#### Intégration pipeline
+
+**Nouvelle colonne CSV:** `page_type` dans `urls_seed_rotors.csv`
+
+| Source | URL | Notes | **page_type** |
+|--------|-----|-------|---------------|
+| dba | https://... | ... | product |
+| autodoc | https://autodoc.../brake-disc-10132 | CATALOG | **list** |
+| mister-auto | https://mister-auto.../brake-discs/ | CATALOG | **list** |
+| powerstop | https://powerstop.../brake-rotors/ | CATALOG | **list** |
+
+**Routing automatique dans `ingest_all()`:**
+```python
+if page_type == "list":
+    count = process_rotor_list_seed(conn, source, url)  # M10.2
+else:
+    count = process_rotor_seed(conn, source, url)  # M2-M7
+```
+
+---
+
+#### Flux de données
+
+```
+URLs Seed (page_type=list)
+         ↓
+   fetch_html(url)
+         ↓
+parse_rotor_list_page(html, source)
+         ↓
+   List[raw_dict]  (N rotors)
+         ↓
+   [For each rotor:]
+         ↓
+   normalize_rotor()  ← M3
+         ↓
+   rotor_exists()  ← M9 dédup
+         ↓
+   insert_rotor()
+```
+
+**Différence vs single-product:**
+- Single: 1 URL → 1 rotor
+- Multi-list: 1 URL → N rotors (10-100+)
+
+---
+
+#### Implémentation production (manuel requis)
+
+**POC framework fourni, mais parsers spécifiques nécessitent analyse HTML manuelle:**
+
+**Étape 1 - Analyser site cible:**
+```bash
+# Ouvrir dans navigateur
+https://www.autodoc.co.uk/car-parts/brake-disc-10132
+
+# View page source (Ctrl+U)
+# Identifier:
+# - Container liste: <div class="product-list">
+# - Items: <div class="product-item">
+# - Champs: brand, part-num, diameter, thickness
+```
+
+**Étape 2 - Implémenter parser:**
+```python
+# Dans html_rotor_list_scraper.py
+def parse_autodoc_list(html: str) -> List[Dict]:
+    rotors = []
+    
+    # Approche regex (simple)
+    pattern = r'<div class="product-item">.*?brand">(.*?)</.*?'
+    matches = re.findall(pattern, html, re.DOTALL)
+    
+    for match in matches:
+        rotor_raw = {
+            "brand_raw": clean_text(match[0]),
+            "catalog_ref_raw": clean_text(match[1]),
+            # ...
+        }
+        rotors.append(rotor_raw)
+    
+    return rotors
+```
+
+**Étape 3 - Tester sur HTML réel:**
+```python
+html = requests.get(url).text
+rotors = parse_autodoc_list(html)
+print(f"Extracted {len(rotors)} rotors")
+```
+
+Voir `documentation/M10_2_scrape_multi_list_log.md` pour guide complet.
+
+---
+
+#### Tests
+
+**Commande:**
+```bash
+python test_rotor_list_scraper.py
+```
+
+**Résultats:**
+- ✅ 19/19 assertions passing
+- ✅ Helper functions validés
+- ✅ SimpleTableParser validé
+- ✅ Integration avec normalize_rotor validée
+- ✅ Error handling (NotImplementedError) validé
+
+**Tests couvrent:**
+- Extraction dimensions texte
+- Parsing HTML tables
+- Compatibilité raw dicts avec pipeline
+- Gestion sources non implémentées
+
+---
+
+#### Bénéfices attendus (après implémentation production)
+
+**Volume:**
+- Avant M10.2: ~50 rotors
+- Après M10.2: ~200-500 rotors (avec 3 catalogues)
+- **Multiplication: x4 à x10**
+
+**Qualité clustering:**
+- Clusters avec plus de membres
+- Centroids plus représentatifs
+- Gaps géométriques identifiables
+
+**Préparation M11:**
+- Dataset robuste pour sélection maîtres
+- 15-25 rotors facilement identifiables
+
+---
+
+#### Limitations POC V1
+
+**Parsers templates vides:**
+- ❌ `parse_autodoc_list()` retourne `[]` (template)
+- ❌ `parse_misterauto_list()` retourne `[]` (template)
+- ❌ `parse_powerstop_list()` retourne `[]` (template)
+- **Solution:** Analyse HTML manuelle + implémentation (voir guide)
+
+**Pas de pagination:**
+- ❌ Seulement 1ère page catalogue scrapée
+- **Solution V2:** Détection auto pagination ou seeds par page
+
+**HTML statique uniquement:**
+- ❌ Sites JavaScript (React/Angular) non supportés
+- **Solution V2:** Selenium/Playwright
+
+**Pas de rate limiting:**
+- ❌ Scraping agressif peut déclencher bans
+- **Solution V2:** `time.sleep()` entre requêtes
+
+---
+
+#### Évolutions futures
+
+**M10.2.1:** Implémentation production parsers (3 sites)
+**M10.2.2:** Support pagination automatique
+**M10.2.3:** Rate limiting et retry logic
+**M10.2.4:** Extension à 5-10 sites additionnels
+**M10.3:** Scraping systématique par véhicules
+**M10.4:** Scraping PDF catalogs via Vision
+
+---
+
 ## 6. Non-objectifs V1
 
 Explicitement hors scope pour l’instant :

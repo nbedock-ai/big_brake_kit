@@ -173,7 +173,11 @@ def iter_seed_urls(kind: str):
         kind: One of "rotors", "pads", "vehicles"
     
     Yields:
-        tuple: (source, url, notes)
+        tuple: (source, url, notes, page_type)
+        
+        page_type can be:
+        - "product": single product page (default for backward compatibility)
+        - "list": catalog page with multiple products (M10.2)
     """
     paths = load_seed_csv_paths()
     csv_paths = paths.get(kind, [])
@@ -189,9 +193,11 @@ def iter_seed_urls(kind: str):
                 source = row.get("source", "").strip()
                 url = row.get("url", "").strip()
                 notes = row.get("notes", "").strip()
+                # M10.2: Support optional "page_type" column
+                page_type = row.get("page_type", "product").strip().lower()
                 
                 if source and url:
-                    yield (source, url, notes)
+                    yield (source, url, notes, page_type)
 
 # ------------------------------------------------------------
 #  Processing Functions
@@ -227,6 +233,80 @@ def process_rotor_seed(conn, source: str, url: str) -> int:
         
     except Exception as e:
         print(f"[ROTOR] ✗ Error processing {url}: {e}")
+        return 0
+
+def process_rotor_list_seed(conn, source: str, url: str) -> int:
+    """
+    Fetch and parse a catalog page listing multiple rotors (M10.2).
+    
+    Extracts multiple rotors from a single catalog page, normalizes each one,
+    and inserts non-duplicates into the database.
+    
+    Args:
+        conn: SQLite connection
+        source: Site identifier (used to select parser)
+        url: Catalog page URL
+    
+    Returns:
+        int: Number of rotors successfully inserted
+    """
+    try:
+        print(f"[ROTOR-LIST] Fetching {source}: {url}")
+        html = fetch_html(url)
+        
+        # Import list parser (late import to avoid circular dependency)
+        from data_scraper.html_rotor_list_scraper import parse_rotor_list_page
+        from data_scraper.html_scraper import normalize_rotor
+        
+        # Parse list page to get RAW rotor dicts
+        raw_rotors = parse_rotor_list_page(html, source)
+        
+        if not raw_rotors:
+            print(f"[ROTOR-LIST] No rotors extracted from page")
+            return 0
+        
+        print(f"[ROTOR-LIST] Extracted {len(raw_rotors)} rotors from page")
+        
+        # Process each rotor
+        inserted_count = 0
+        for i, raw_rotor in enumerate(raw_rotors, 1):
+            try:
+                # Normalize raw data
+                rotor = normalize_rotor(raw_rotor, source=source)
+                
+                # Validate required fields
+                required_fields = ["outer_diameter_mm", "nominal_thickness_mm",
+                                  "hat_height_mm", "overall_height_mm",
+                                  "center_bore_mm", "bolt_circle_mm",
+                                  "bolt_hole_count", "ventilation_type",
+                                  "directionality", "brand", "catalog_ref"]
+                
+                if not all(rotor.get(f) for f in required_fields):
+                    print(f"[ROTOR-LIST]   {i}/{len(raw_rotors)} Missing required fields, skipping")
+                    continue
+                
+                # Check for duplicates (M9)
+                if rotor_exists(conn, rotor):
+                    print(f"[ROTOR-LIST]   {i}/{len(raw_rotors)} ○ Duplicate {rotor.get('brand')}/{rotor.get('catalog_ref')}, skipping")
+                    continue
+                
+                # Insert into database
+                insert_rotor(conn, rotor)
+                print(f"[ROTOR-LIST]   {i}/{len(raw_rotors)} ✓ Inserted: {rotor.get('brand')} {rotor.get('catalog_ref')}")
+                inserted_count += 1
+                
+            except Exception as e:
+                print(f"[ROTOR-LIST]   {i}/{len(raw_rotors)} ✗ Error: {e}")
+                continue
+        
+        print(f"[ROTOR-LIST] Summary: {inserted_count}/{len(raw_rotors)} rotors inserted")
+        return inserted_count
+        
+    except NotImplementedError as e:
+        print(f"[ROTOR-LIST] ⚠ Parser not implemented: {e}")
+        return 0
+    except Exception as e:
+        print(f"[ROTOR-LIST] ✗ Error processing {url}: {e}")
         return 0
 
 def process_pad_seed(conn, source: str, url: str) -> int:
@@ -347,13 +427,16 @@ def ingest_all(group: str | None = None) -> None:
             
             group_count = 0
             
-            for source, url, notes in iter_seed_urls(current_group):
+            for source, url, notes, page_type in iter_seed_urls(current_group):
                 if notes:
                     print(f"\nNote: {notes}")
                 
-                # Call appropriate processor
+                # Call appropriate processor based on group and page_type (M10.2)
                 if current_group == "rotors":
-                    count = process_rotor_seed(conn, source, url)
+                    if page_type == "list":
+                        count = process_rotor_list_seed(conn, source, url)
+                    else:
+                        count = process_rotor_seed(conn, source, url)
                 elif current_group == "pads":
                     count = process_pad_seed(conn, source, url)
                 elif current_group == "vehicles":
