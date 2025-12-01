@@ -56,6 +56,75 @@ def ingest_jsonl(path: str, table: str):
     conn.close()
 
 # ------------------------------------------------------------
+#  Deduplication Helpers (Mission 9)
+# ------------------------------------------------------------
+
+def rotor_exists(conn, rotor: dict) -> bool:
+    """
+    Check if a rotor with the same (brand, catalog_ref) already exists in DB.
+    
+    Args:
+        conn: SQLite connection
+        rotor: Rotor dict with at least 'brand' and 'catalog_ref' fields
+    
+    Returns:
+        True if duplicate exists, False otherwise
+    """
+    sql = """
+    SELECT 1 FROM rotors
+    WHERE brand = ? AND catalog_ref = ?
+    LIMIT 1
+    """
+    cur = conn.execute(sql, (rotor.get("brand"), rotor.get("catalog_ref")))
+    return cur.fetchone() is not None
+
+def pad_exists(conn, pad: dict) -> bool:
+    """
+    Check if a pad with the same (shape_id, brand, catalog_ref) already exists in DB.
+    
+    Args:
+        conn: SQLite connection
+        pad: Pad dict with at least 'shape_id', 'brand', and 'catalog_ref' fields
+    
+    Returns:
+        True if duplicate exists, False otherwise
+    """
+    sql = """
+    SELECT 1 FROM pads
+    WHERE shape_id = ? AND brand = ? AND catalog_ref = ?
+    LIMIT 1
+    """
+    cur = conn.execute(sql, (
+        pad.get("shape_id"),
+        pad.get("brand"),
+        pad.get("catalog_ref"),
+    ))
+    return cur.fetchone() is not None
+
+def vehicle_exists(conn, vehicle: dict) -> bool:
+    """
+    Check if a vehicle with the same (make, model, year_from) already exists in DB.
+    
+    Args:
+        conn: SQLite connection
+        vehicle: Vehicle dict with at least 'make', 'model', and 'year_from' fields
+    
+    Returns:
+        True if duplicate exists, False otherwise
+    """
+    sql = """
+    SELECT 1 FROM vehicles
+    WHERE make = ? AND model = ? AND year_from = ?
+    LIMIT 1
+    """
+    cur = conn.execute(sql, (
+        vehicle.get("make"),
+        vehicle.get("model"),
+        vehicle.get("year_from"),
+    ))
+    return cur.fetchone() is not None
+
+# ------------------------------------------------------------
 #  Seed Loading Helpers
 # ------------------------------------------------------------
 
@@ -184,6 +253,11 @@ def process_pad_seed(conn, source: str, url: str) -> int:
             print(f"[PAD] Missing required fields")
             return 0
         
+        # Check for duplicates (M9)
+        if pad_exists(conn, pad):
+            print(f"[PAD] ○ Duplicate {pad.get('shape_id')}/{pad.get('brand')}/{pad.get('catalog_ref')}, skipping")
+            return 0
+        
         insert_pad(conn, pad)
         print(f"[PAD] ✓ Inserted: {pad.get('brand')} {pad.get('catalog_ref')}")
         return 1
@@ -218,6 +292,11 @@ def process_vehicle_seed(conn, source: str, url: str) -> int:
                           "hub_bolt_hole_count", "hub_center_bore_mm"]
         if not all(vehicle.get(f) for f in required_fields):
             print(f"[VEHICLE] Missing required fields")
+            return 0
+        
+        # Check for duplicates (M9)
+        if vehicle_exists(conn, vehicle):
+            print(f"[VEHICLE] ○ Duplicate {vehicle.get('make')}/{vehicle.get('model')}/{vehicle.get('year_from')}, skipping")
             return 0
         
         insert_vehicle(conn, vehicle)

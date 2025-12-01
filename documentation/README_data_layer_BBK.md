@@ -704,6 +704,75 @@ BIGBRAKEKIT - INGESTION PIPELINE
 - Meilleur pour scripts cron/CI-CD
 - Interface unifiée pour utilisateurs non-développeurs
 
+### 4.8 Déduplication V1
+
+**Status: ✅ Implémenté (Mission 9)**
+
+Déduplication simple basée sur des clés primaires pour éviter les doublons lors de l'ingestion.
+
+**Stratégie:** Vérification DB avant insertion (SELECT check)
+
+**Clés de déduplication:**
+
+| Type | Clé de déduplication | Champs |
+|------|---------------------|--------|
+| **Rotors** | `(brand, catalog_ref)` | Identifiant unique par fabricant + référence catalogue |
+| **Pads** | `(shape_id, brand, catalog_ref)` | Shape + identifiant fabricant |
+| **Vehicles** | `(make, model, year_from)` | Marque + modèle + année début génération |
+
+**Fonctionnement:**
+1. Avant chaque insertion, vérification via `*_exists(conn, obj)`
+2. Si l'entrée existe déjà → skip avec log `○ Duplicate ...`
+3. Si l'entrée n'existe pas → insertion normale
+
+**Implémentation:**
+```python
+# Helpers de vérification
+def rotor_exists(conn, rotor: dict) -> bool:
+    sql = "SELECT 1 FROM rotors WHERE brand = ? AND catalog_ref = ? LIMIT 1"
+    return conn.execute(sql, (rotor["brand"], rotor["catalog_ref"])).fetchone() is not None
+
+# Intégration dans process_*_seed
+if rotor_exists(conn, rotor):
+    print("[ROTOR] ○ Duplicate {brand}/{catalog_ref}, skipping")
+    return 0  # Ne compte pas comme insertion
+insert_rotor(conn, rotor)
+return 1  # Insertion réussie
+```
+
+**Impact:**
+- `ingest_all()` devient **idempotent** : relancer le pipeline ne crée pas de doublons
+- Seeds partiellement recoupants ne génèrent pas de duplicates
+- Compteur d'insertions reflète les nouvelles entrées uniquement
+
+**Comportement observable:**
+```
+[ROTOR] Fetching dba: https://...
+[ROTOR] ✓ Inserted: DBA DBA2000    # Premier passage
+
+[ROTOR] Fetching dba: https://...
+[ROTOR] ○ Duplicate DBA/DBA2000, skipping    # Deuxième passage (même seed)
+```
+
+**Limitations V1:**
+- **Pas de déduplication "floue"** : comparaison exacte uniquement
+- **Pas de merge** : si données légèrement différentes, aucune mise à jour
+- **Pas de versionning** : dernière version n'écrase pas l'ancienne
+- **Pas de cross-type dedup** : rotor vs pad avec même ref ne sont pas comparés
+
+**Tests validés:**
+- ✅ Rotor duplicate insert blocked (same brand + catalog_ref)
+- ✅ Pad duplicate insert blocked (same shape_id + brand + catalog_ref)
+- ✅ Vehicle duplicate insert blocked (same make + model + year_from)
+- ✅ Non-duplicates allowed (different keys)
+
+Total: 11 assertions validées (test_dedup_v1.py)
+
+**Évolutions futures (hors V1):**
+- M10+: Déduplication floue (Levenshtein distance sur catalog_ref)
+- M11+: Merge automatique (mise à jour champs optionnels manquants)
+- M12+: Versionning (garder historique des modifications)
+
 ---
 
 ## 5. Non-objectifs V1
