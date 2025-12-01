@@ -93,9 +93,50 @@ Usage : mapping véhicule → espace des rotors possibles → sélection d’un 
 
 ---
 
-## 2. Base SQL (`database/init.sql`)
+### 1.4 Normalisation Rotors (`normalize_rotor`)
 
-Trois tables :
+**Status: ✅ Implémenté (Mission 2)**
+
+La fonction `normalize_rotor` dans `data_scraper/html_scraper.py` transforme les données brutes (strings) en objets conformes au schéma JSON.
+
+**Règles de normalisation:**
+
+1. **Conversion de types:**
+   - Champs numériques (mm) → `float`
+   - `bolt_hole_count` → `int`
+   - Valeurs absentes ou invalides → `None`
+
+2. **Standardisation des enums:**
+   - `ventilation_type`: "drilled/slotted" → "drilled_slotted", etc.
+   - `directionality`: "non-directional" → "non_directional", "l" → "left", "r" → "right"
+   - `mounting_type`: "2-piece_bolted" → "2_piece_bolted", etc.
+
+3. **Calcul automatique de `offset_mm`:**
+   ```python
+   offset_mm = overall_height_mm - hat_height_mm
+   ```
+   Si `offset_mm` est déjà fourni dans les données brutes, il est préservé.
+
+4. **Champs obligatoires vs optionnels:**
+   - Champs obligatoires: doivent être présents et non-null après normalisation
+   - Champs optionnels: peuvent être `None`
+
+5. **Brand et catalog_ref:**
+   - `brand` = `source` (argument de la fonction)
+   - `catalog_ref` = `raw["ref"]` ou `raw["catalog_ref"]` ou chaîne vide
+
+**Exemple:**
+```python
+raw = {"outer_diameter_mm": "330", "nominal_thickness_mm": "28", ...}
+normalized = normalize_rotor(raw, "dba")
+# offset_mm sera automatiquement calculé si absent
+```
+
+---
+
+## 2. Structure SQL
+
+Tables :
 
 - `rotors`
 - `pads`
