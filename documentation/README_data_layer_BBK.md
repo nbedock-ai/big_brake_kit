@@ -1339,6 +1339,122 @@ Voir log complet pour détails techniques et guide téléchargement manuel.
 
 ---
 
+### 5.5 Audit d'accessibilité des sites (Mission 10.5)
+
+**Status: ✅ COMPLÉTÉ - Audit systématique de 31 seeds**
+
+**M10.5:** Recensement des sites accessibles et des champs disponibles
+
+Audit systématique de tous les seeds URLs (rotors, pads, vehicles) pour déterminer accessibilité et champs disponibles.
+
+**Résultats:**
+- **Total seeds audités:** 31
+- **Sites accessibles (sans protection bot):** 1 (3%)
+- **Sites protégés (WAF/Cloudflare):** 14 (45%)
+- **Erreurs (404/timeout/SSL):** 16 (52%)
+
+---
+
+#### Site accessible
+
+**ACDelco** (www.acdelco.com)
+- ✅ HTTP 200 sans protection bot
+- ✅ HTML sauvegardé (665KB)
+- ✅ **6 champs détectés:** bolt_hole_count, ventilation_type, directionality, brand, catalog_ref, fitment_vehicle
+- ❌ **6 champs manquants:** diameter_mm, thickness_mm, center_bore_mm, height_mm, offset_mm, weight_kg
+
+**Implication:** Seul site accessible, mais champs critiques (diamètre, épaisseur) non détectés → nécessite parser custom ou investigation HTML.
+
+---
+
+#### Sites protégés par bot (14 sites, 45%)
+
+**Protection Cloudflare/WAF:**
+- autodoc, mister-auto, mopar, partsgeek, autozone (HTTP 403)
+- dba, summit, fcpeuro, apracing (HTTP 200 mais Cloudflare challenge)
+- wheel-size (3 seeds, tous protégés)
+
+**Nécessitent:** Selenium/Playwright pour contourner protection
+
+---
+
+#### Sites avec erreurs (16 sites, 52%)
+
+**HTTP 404 (13 sites):** brembo, ebc, zimmermann, powerstop, centric, wagner, raybestos, bosch, wilwood, ferodo, etc.
+
+**Timeouts (2 sites):** carparts, ford
+
+**SSL Error (1 site):** stoptech
+
+**Cause:** URLs obsolètes (sites redesignés depuis M10.1)
+
+---
+
+#### Méthodologie
+
+**Outil développé:** `tools/site_access_audit.py`
+
+**Fonctions:**
+1. `collect_seeds()` - Agrégation seeds de tous les CSV
+2. `probe_url()` - Test accessibilité + détection bot
+3. `analyze_html_fields()` - Détection champs via regex
+4. `run_audit()` - Orchestration complète + rapports
+
+**Détection champs (12 champs rotors):**
+- Dimensions: diameter_mm, thickness_mm, height_mm, center_bore_mm, offset_mm
+- Bolt pattern: bolt_hole_count
+- Type: ventilation_type, directionality
+- Identifiants: brand, catalog_ref
+- Extras: weight_kg, fitment_vehicle
+
+**Tests:** 32/34 passing (94%) - logique de détection validée
+
+---
+
+#### Rapports générés
+
+- **`documentation/M10_5_site_access_report.json`** - Rapport machine-readable
+- **`documentation/M10_5_site_access_report.md`** - Rapport human-readable avec tableaux par catégorie
+- **`artifacts/site_html_samples/rotor/www.acdelco.com/`** - HTML sample ACDelco (seul site accessible)
+- **`documentation/M10_5_site_access_audit_log.md`** - Log complet avec analyse + recommandations
+
+---
+
+#### Implications stratégiques
+
+**Constat: 97% des sites nécessitent Selenium ou sont invalides**
+
+**Options:**
+
+1. **Continuer avec fixtures (recommandé M11-M15)**
+   - Dataset actuel suffisant pour clustering/master selection
+   - Différer scraping réel à post-MVP
+
+2. **Valider/mettre à jour URLs (52% erreurs)**
+   - Trouver URLs correctes pour sites 404
+   - Re-audit après mise à jour
+   - Effort: 1-2h
+
+3. **Setup Selenium (45% protégés bot)**
+   - Headless browser pour contourner WAF
+   - Débloque 14 sites additionnels
+   - Effort: 2-4h
+
+**Recommandation:** Option 1 (fixtures) pour missions immédiates, options 2+3 post-MVP si expansion volume requise.
+
+---
+
+#### Validation Mission 10.4
+
+M10.5 confirme systématiquement les findings M10.4:
+- ✅ AutoDoc: 403 (M10.4: 403)
+- ✅ Mister-Auto: 403 (M10.4: 403)
+- ✅ PowerStop: 404 (M10.4: 404)
+
+**Expansion:** M10.5 teste 31 seeds vs 3 en M10.4, confirme protection bot généralisée.
+
+---
+
 ## 6. Non-objectifs V1
 
 Explicitement hors scope pour l’instant :
