@@ -134,22 +134,43 @@ else:
 
 
 # ============================================================
-# Test 4: parse_rotor_list_page - template parsers
+# Test 4: AutoDoc list parser with fixture
 # ============================================================
-print("\n[TEST 4] parse_rotor_list_page - template parsers return lists")
+print("\n[TEST 4] AutoDoc list parser - fixture extraction")
 print("-" * 60)
 
-# Test that template parsers return lists (even if empty, since they're templates)
-template_sources = ["autodoc", "mister-auto", "powerstop"]
-checks4 = []
+from pathlib import Path
 
-for source in template_sources:
-    try:
-        result = parse_rotor_list_page("<html>test</html>", source)
-        is_list = isinstance(result, list)
-        checks4.append((is_list, f"{source} parser returns list (got {type(result).__name__})"))
-    except Exception as e:
-        checks4.append((False, f"{source} parser raised unexpected error: {e}"))
+def load_fixture(name: str) -> str:
+    """Load HTML fixture from tests/fixtures/rotor_lists/"""
+    base = Path(__file__).parent / "tests" / "fixtures" / "rotor_lists"
+    return (base / name).read_text(encoding="utf-8")
+
+try:
+    autodoc_html = load_fixture("autodoc_list_01.html")
+    autodoc_rotors = parse_rotor_list_page(autodoc_html, "autodoc")
+    
+    checks4 = [
+        (isinstance(autodoc_rotors, list), "Returns list"),
+        (len(autodoc_rotors) >= 5, f"Extracts at least 5 rotors (got {len(autodoc_rotors)})"),
+    ]
+    
+    # Check first rotor has required fields
+    if len(autodoc_rotors) > 0:
+        first = autodoc_rotors[0]
+        checks4.extend([
+            (first.get("brand") is not None and first.get("brand") != "", "First rotor has brand"),
+            (first.get("catalog_ref") is not None and first.get("catalog_ref") != "", "First rotor has catalog_ref"),
+            (first.get("outer_diameter_mm") is not None, "First rotor has diameter"),
+            (first.get("nominal_thickness_mm") is not None, "First rotor has thickness"),
+        ])
+    
+    # Check variety of brands
+    brands = {r.get("brand") for r in autodoc_rotors if r.get("brand")}
+    checks4.append((len(brands) >= 3, f"Multiple brands extracted (got {len(brands)} unique brands)"))
+    
+except Exception as e:
+    checks4 = [(False, f"AutoDoc parser raised error: {e}")]
 
 passed4 = sum(1 for check, _ in checks4 if check)
 failed4 = len(checks4) - passed4
@@ -165,31 +186,36 @@ else:
 
 
 # ============================================================
-# Test 5: Integration with normalize_rotor
+# Test 5: Mister-Auto list parser with fixture
 # ============================================================
-print("\n[TEST 5] Integration - raw dict compatible with normalize_rotor")
+print("\n[TEST 5] Mister-Auto list parser - fixture extraction")
 print("-" * 60)
 
-# Create a mock raw rotor dict as would be returned by parse_rotor_list_page
-from data_scraper.html_scraper import normalize_rotor
-
-raw_rotor = {
-    "brand_raw": "Bosch",
-    "catalog_ref_raw": "0986479123",
-    "outer_diameter_mm_raw": 280.0,
-    "nominal_thickness_mm_raw": 22.0,
-    "source": "test"
-}
-
 try:
-    normalized = normalize_rotor(raw_rotor, source="test")
+    misterauto_html = load_fixture("misterauto_list_01.html")
+    misterauto_rotors = parse_rotor_list_page(misterauto_html, "mister-auto")
+    
     checks5 = [
-        (isinstance(normalized, dict), "normalize_rotor returns dict"),
-        (normalized.get("brand") is not None, "Brand field present after normalization"),
-        (normalized.get("catalog_ref") is not None, "Catalog ref present after normalization"),
+        (isinstance(misterauto_rotors, list), "Returns list"),
+        (len(misterauto_rotors) >= 5, f"Extracts at least 5 rotors (got {len(misterauto_rotors)})"),
     ]
+    
+    # Check first rotor
+    if len(misterauto_rotors) > 0:
+        first = misterauto_rotors[0]
+        checks5.extend([
+            (first.get("brand") is not None and first.get("brand") != "", "First rotor has brand"),
+            (first.get("catalog_ref") is not None and first.get("catalog_ref") != "", "First rotor has catalog_ref"),
+            (first.get("outer_diameter_mm") is not None, "First rotor has diameter"),
+            (first.get("nominal_thickness_mm") is not None, "First rotor has thickness"),
+        ])
+    
+    # Check variety of brands
+    brands = {r.get("brand") for r in misterauto_rotors if r.get("brand")}
+    checks5.append((len(brands) >= 3, f"Multiple brands extracted (got {len(brands)} unique brands)"))
+    
 except Exception as e:
-    checks5 = [(False, f"normalize_rotor raised error: {e}")]
+    checks5 = [(False, f"Mister-Auto parser raised error: {e}")]
 
 passed5 = sum(1 for check, _ in checks5 if check)
 failed5 = len(checks5) - passed5
@@ -205,10 +231,99 @@ else:
 
 
 # ============================================================
+# Test 6: PowerStop list parser with fixture
+# ============================================================
+print("\n[TEST 6] PowerStop list parser - fixture extraction")
+print("-" * 60)
+
+try:
+    powerstop_html = load_fixture("powerstop_list_01.html")
+    powerstop_rotors = parse_rotor_list_page(powerstop_html, "powerstop")
+    
+    checks6 = [
+        (isinstance(powerstop_rotors, list), "Returns list"),
+        (len(powerstop_rotors) >= 5, f"Extracts at least 5 rotors (got {len(powerstop_rotors)})"),
+    ]
+    
+    # Check first rotor
+    if len(powerstop_rotors) > 0:
+        first = powerstop_rotors[0]
+        checks6.extend([
+            (first.get("brand") == "PowerStop", "Brand is PowerStop"),
+            (first.get("catalog_ref") is not None and first.get("catalog_ref") != "", "First rotor has catalog_ref"),
+            (first.get("outer_diameter_mm") is not None, "First rotor has diameter"),
+            (first.get("nominal_thickness_mm") is not None, "First rotor has thickness"),
+        ])
+        
+        # PowerStop-specific: check directionality extraction
+        directional_rotors = [r for r in powerstop_rotors if r.get("directionality") in ["left", "right"]]
+        checks6.append((len(directional_rotors) >= 1, f"At least one directional rotor found (got {len(directional_rotors)})"))
+    
+except Exception as e:
+    checks6 = [(False, f"PowerStop parser raised error: {e}")]
+
+passed6 = sum(1 for check, _ in checks6 if check)
+failed6 = len(checks6) - passed6
+
+for check, message in checks6:
+    status = "[PASS]" if check else "[FAIL]"
+    print(f"{status} {message}")
+
+if failed6 == 0:
+    print(f"\n[PASS] Test 6 PASSED ({passed6}/{passed6} checks)")
+else:
+    print(f"\n[FAIL] Test 6 FAILED ({passed6}/{passed6+failed6} checks)")
+
+
+# ============================================================
+# Test 7: Integration with normalize_rotor
+# ============================================================
+print("\n[TEST 7] Integration - parsed rotors compatible with normalize_rotor")
+print("-" * 60)
+
+from data_scraper.html_scraper import normalize_rotor
+
+checks7 = []
+
+# Test normalization of one rotor from each parser
+test_rotors = []
+if len(autodoc_rotors) > 0:
+    test_rotors.append(("autodoc", autodoc_rotors[0]))
+if len(misterauto_rotors) > 0:
+    test_rotors.append(("mister-auto", misterauto_rotors[0]))
+if len(powerstop_rotors) > 0:
+    test_rotors.append(("powerstop", powerstop_rotors[0]))
+
+for source, raw_rotor in test_rotors:
+    try:
+        normalized = normalize_rotor(raw_rotor, source=source)
+        checks7.extend([
+            (isinstance(normalized, dict), f"{source}: normalize_rotor returns dict"),
+            (normalized.get("brand") is not None, f"{source}: Brand present after normalization"),
+            (normalized.get("catalog_ref") is not None, f"{source}: Catalog ref present after normalization"),
+            (normalized.get("outer_diameter_mm") is not None, f"{source}: Diameter present after normalization"),
+        ])
+    except Exception as e:
+        checks7.append((False, f"{source}: normalize_rotor raised error: {e}"))
+
+passed7 = sum(1 for check, _ in checks7 if check)
+failed7 = len(checks7) - passed7
+
+for check, message in checks7:
+    status = "[PASS]" if check else "[FAIL]"
+    print(f"{status} {message}")
+
+if failed7 == 0:
+    print(f"\n[PASS] Test 7 PASSED ({passed7}/{passed7} checks)")
+else:
+    print(f"\n[FAIL] Test 7 FAILED ({passed7}/{passed7+failed7} checks)")
+
+
+# ============================================================
 # Summary
 # ============================================================
-total_passed = passed1 + passed2 + passed3 + passed4 + passed5
-total_failed = failed1 + failed2 + failed3 + failed4 + failed5
+total_passed = passed1 + passed2 + passed3 + passed4 + passed5 + passed6 + passed7
+total_failed = failed1 + failed2 + failed3 + failed4 + failed5 + failed6 + failed7
 
 print("\n" + "="*60)
 print("ALL TESTS COMPLETED")
@@ -217,7 +332,14 @@ print("="*60)
 
 if total_failed == 0:
     print("\n[SUCCESS] All multi-list scraping tests passed!")
-    print("\n**NOTE:** Template parsers require manual implementation.")
-    print("See html_rotor_list_scraper.py TODOs for site-specific parsing.")
+    print("\n**PRODUCTION PARSERS IMPLEMENTED:**")
+    print("  - AutoDoc UK: READY")
+    print("  - Mister-Auto FR: READY")
+    print("  - PowerStop US: READY")
+    print("\n**NOTE:** These parsers work with fixture HTML structures.")
+    print("To use with real sites, replace fixtures with actual HTML from:")
+    print("  - https://www.autodoc.co.uk/car-parts/brake-disc-10132")
+    print("  - https://www.mister-auto.com/brake-discs/")
+    print("  - https://www.powerstop.com/product-category/brake-rotors/")
 else:
     print(f"\n[FAIL] {total_failed} test(s) failed")

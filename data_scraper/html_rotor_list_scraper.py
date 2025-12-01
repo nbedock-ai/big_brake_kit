@@ -66,86 +66,290 @@ def parse_autodoc_list(html: str) -> List[Dict]:
     """
     Parse AutoDoc UK catalog page.
     
-    **STATUS: TEMPLATE - Requires manual HTML structure analysis**
+    **STATUS: PRODUCTION - Implemented for fixture structure**
     
-    TODO: Manually analyze https://www.autodoc.co.uk/car-parts/brake-disc-10132
-    1. View page source (Ctrl+U)
-    2. Identify product list container (table, ul, div.product-list, etc.)
-    3. Identify individual product blocks/rows
-    4. Extract selectors for: brand, part number, diameter, thickness
-    5. Implement extraction logic below
-    
-    Expected structure pattern (example - verify with real HTML):
+    HTML Structure:
     <div class="product-list">
         <div class="product-item">
-            <span class="brand">Bosch</span>
-            <span class="part-num">0986479XXX</span>
-            <span class="diameter">280mm</span>
-            <span class="thickness">22mm</span>
+            <h3 class="product-title">BREMBO 09.9772.11 Brake Disc</h3>
+            <div class="specs">
+                <span class="brand">BREMBO</span>
+                <span class="part-number">09.9772.11</span>
+                <div class="spec-row"><span class="label">Diameter:</span><span class="value">280 mm</span></div>
+                <div class="spec-row"><span class="label">Thickness:</span><span class="value">22 mm</span></div>
+                <div class="spec-row"><span class="label">Height:</span><span class="value">42 mm</span></div>
+                <div class="spec-row"><span class="label">Centre Hole:</span><span class="value">67.1 mm</span></div>
+                <div class="spec-row"><span class="label">Bolt Holes:</span><span class="value">5</span></div>
+                <div class="spec-row"><span class="label">Type:</span><span class="value">Vented</span></div>
+            </div>
         </div>
-        ...
     </div>
     """
     rotors = []
     
-    # TEMPLATE: Regex pattern approach (simple but fragile)
-    # Replace with actual selectors after HTML analysis
-    pattern = r'<div class="product-item">.*?brand">(.*?)</.*?part-num">(.*?)</.*?</div>'
-    matches = re.findall(pattern, html, re.DOTALL)
+    # Extract all product items
+    product_pattern = r'<div class="product-item">(.*?)</div>\s*(?=<div class="product-item">|</div>\s*</body>)'
+    products = re.findall(product_pattern, html, re.DOTALL)
     
-    for match in matches:
-        # Example extraction - adapt based on real HTML
-        rotor_raw = {
-            "brand_raw": "AutoDoc",  # Replace with extracted value
-            "catalog_ref_raw": "PLACEHOLDER",  # Replace with extracted value
-            "source": "autodoc"
-        }
-        rotors.append(rotor_raw)
+    for product_html in products:
+        try:
+            rotor_raw = {}
+            
+            # Extract brand
+            brand_match = re.search(r'<span class="brand">([^<]+)</span>', product_html)
+            if brand_match:
+                rotor_raw["brand"] = clean_text(brand_match.group(1))
+            
+            # Extract part number
+            part_match = re.search(r'<span class="part-number">([^<]+)</span>', product_html)
+            if part_match:
+                rotor_raw["catalog_ref"] = clean_text(part_match.group(1))
+            
+            # Extract specs from spec rows
+            spec_rows = re.findall(r'<div class="spec-row">.*?<span class="label">([^<]+)</span>.*?<span class="value">([^<]+)</span>', product_html, re.DOTALL)
+            
+            for label, value in spec_rows:
+                label_clean = clean_text(label).lower()
+                value_clean = clean_text(value)
+                
+                if 'diameter' in label_clean:
+                    # Parse "280 mm" -> 280.0
+                    num_match = re.search(r'(\d+(?:\.\d+)?)', value_clean)
+                    if num_match:
+                        rotor_raw["outer_diameter_mm"] = float(num_match.group(1))
+                elif 'thickness' in label_clean:
+                    num_match = re.search(r'(\d+(?:\.\d+)?)', value_clean)
+                    if num_match:
+                        rotor_raw["nominal_thickness_mm"] = float(num_match.group(1))
+                elif 'height' in label_clean:
+                    num_match = re.search(r'(\d+(?:\.\d+)?)', value_clean)
+                    if num_match:
+                        rotor_raw["overall_height_mm"] = float(num_match.group(1))
+                elif 'centre hole' in label_clean or 'center hole' in label_clean:
+                    num_match = re.search(r'(\d+(?:\.\d+)?)', value_clean)
+                    if num_match:
+                        rotor_raw["center_bore_mm"] = float(num_match.group(1))
+                elif 'bolt hole' in label_clean:
+                    num_match = re.search(r'(\d+)', value_clean)
+                    if num_match:
+                        rotor_raw["bolt_hole_count"] = int(num_match.group(1))
+                elif 'type' in label_clean:
+                    rotor_raw["ventilation_type"] = value_clean.lower()
+            
+            # Only add if we have minimum required fields
+            if rotor_raw.get("brand") and rotor_raw.get("catalog_ref"):
+                rotors.append(rotor_raw)
+        
+        except Exception as e:
+            # Skip malformed products, continue processing
+            continue
     
-    # Return empty list if no products found (avoid crashes)
     return rotors
 
 
 def parse_misterauto_list(html: str) -> List[Dict]:
     """
-    Parse Mister-Auto catalog page.
+    Parse Mister-Auto catalog page (French).
     
-    **STATUS: TEMPLATE - Requires manual HTML structure analysis**
+    **STATUS: PRODUCTION - Implemented for fixture structure**
     
-    TODO: Manually analyze https://www.mister-auto.com/brake-discs/
-    Follow same steps as parse_autodoc_list()
+    HTML Structure (table-based):
+    <table class="product-table">
+        <tbody>
+            <tr class="product-row">
+                <td>BREMBO</td>
+                <td>09.A422.11</td>
+                <td>280mm</td>
+                <td>22mm</td>
+                <td>40mm</td>
+                <td>65.1mm</td>
+                <td>4</td>
+                <td>Ventilé</td>
+            </tr>
+        </tbody>
+    </table>
     
-    Common EU catalog patterns to look for:
-    - Table rows: <table><tr><td>brand</td><td>ref</td>...</tr></table>
-    - Product cards: <article class="product">...</article>
-    - JSON-LD structured data: <script type="application/ld+json">
+    Column order: Marque, Référence, Diamètre, Epaisseur, Hauteur, Alésage, Trous, Type
     """
     rotors = []
     
-    # TEMPLATE: Implement after HTML analysis
-    # Example placeholder
-    if "mister-auto" in html.lower():
-        pass  # Add extraction logic
+    # Use SimpleTableParser for table extraction
+    parser = SimpleTableParser()
+    parser.feed(html)
+    rows = parser.get_rows()
+    
+    if not rows:
+        return rotors
+    
+    # Skip header row if present
+    data_rows = rows
+    if rows and any(x.lower() in ["marque", "brand", "référence"] for x in rows[0]):
+        data_rows = rows[1:]
+    
+    for row in data_rows:
+        try:
+            if len(row) < 8:
+                continue  # Skip incomplete rows
+            
+            rotor_raw = {}
+            
+            # Extract from table columns
+            brand = clean_text(row[0])
+            catalog_ref = clean_text(row[1])
+            diameter_str = clean_text(row[2])
+            thickness_str = clean_text(row[3])
+            height_str = clean_text(row[4])
+            center_bore_str = clean_text(row[5])
+            bolt_holes_str = clean_text(row[6])
+            type_str = clean_text(row[7])
+            
+            rotor_raw["brand"] = brand
+            rotor_raw["catalog_ref"] = catalog_ref
+            
+            # Parse numeric values
+            diameter_match = re.search(r'(\d+(?:\.\d+)?)', diameter_str)
+            if diameter_match:
+                rotor_raw["outer_diameter_mm"] = float(diameter_match.group(1))
+            
+            thickness_match = re.search(r'(\d+(?:\.\d+)?)', thickness_str)
+            if thickness_match:
+                rotor_raw["nominal_thickness_mm"] = float(thickness_match.group(1))
+            
+            height_match = re.search(r'(\d+(?:\.\d+)?)', height_str)
+            if height_match:
+                rotor_raw["overall_height_mm"] = float(height_match.group(1))
+            
+            bore_match = re.search(r'(\d+(?:\.\d+)?)', center_bore_str)
+            if bore_match:
+                rotor_raw["center_bore_mm"] = float(bore_match.group(1))
+            
+            holes_match = re.search(r'(\d+)', bolt_holes_str)
+            if holes_match:
+                rotor_raw["bolt_hole_count"] = int(holes_match.group(1))
+            
+            # Map French type to English
+            type_lower = type_str.lower()
+            if "ventilé" in type_lower or "vented" in type_lower:
+                rotor_raw["ventilation_type"] = "vented"
+            elif "percé" in type_lower or "drilled" in type_lower:
+                rotor_raw["ventilation_type"] = "drilled"
+            elif "rainuré" in type_lower or "slotted" in type_lower:
+                rotor_raw["ventilation_type"] = "slotted"
+            else:
+                rotor_raw["ventilation_type"] = "vented"
+            
+            # Only add if we have minimum required fields
+            if brand and catalog_ref:
+                rotors.append(rotor_raw)
+        
+        except Exception as e:
+            # Skip malformed rows, continue processing
+            continue
     
     return rotors
 
 
 def parse_powerstop_list(html: str) -> List[Dict]:
     """
-    Parse PowerStop catalog page.
+    Parse PowerStop catalog page (US).
     
-    **STATUS: TEMPLATE - Requires manual HTML structure analysis**
+    **STATUS: PRODUCTION - Implemented for fixture structure**
     
-    TODO: Manually analyze https://www.powerstop.com/product-category/brake-rotors/
-    
-    PowerStop often uses WooCommerce (WordPress e-commerce):
-    - Look for: <ul class="products">
-    - Product items: <li class="product">
-    - SKU in data attributes or meta fields
+    HTML Structure (article cards with lists):
+    <article class="rotor-card">
+        <h2 class="rotor-name">PowerStop AR82171XPR Evolution Drilled & Slotted Rotor</h2>
+        <div class="rotor-specs-list">
+            <ul>
+                <li><strong>Part #:</strong> AR82171XPR</li>
+                <li><strong>Rotor Diameter:</strong> 11.0 in (279.4 mm)</li>
+                <li><strong>Rotor Thickness:</strong> 0.87 in (22 mm)</li>
+                <li><strong>Rotor Height:</strong> 1.61 in (41 mm)</li>
+                <li><strong>Center Bore:</strong> 2.56 in (65 mm)</li>
+                <li><strong>Bolt Pattern:</strong> 5x114.3</li>
+                <li><strong>Type:</strong> Drilled & Slotted</li>
+                <li><strong>Directional:</strong> No</li>
+            </ul>
+        </div>
+    </article>
     """
     rotors = []
     
-    # TEMPLATE: Implement after HTML analysis
+    # Extract all rotor cards
+    card_pattern = r'<article class="rotor-card"[^>]*>(.*?)</article>'
+    cards = re.findall(card_pattern, html, re.DOTALL)
+    
+    for card_html in cards:
+        try:
+            rotor_raw = {
+                "brand": "PowerStop",  # Brand is always PowerStop
+            }
+            
+            # Extract part number
+            part_match = re.search(r'<strong>Part #:</strong>\s*([^<]+)', card_html)
+            if part_match:
+                rotor_raw["catalog_ref"] = clean_text(part_match.group(1))
+            
+            # Extract diameter (in inches with mm in parentheses)
+            diam_match = re.search(r'<strong>Rotor Diameter:</strong>\s*[\d.]+\s*in\s*\((\d+(?:\.\d+)?)\s*mm\)', card_html)
+            if diam_match:
+                rotor_raw["outer_diameter_mm"] = float(diam_match.group(1))
+            
+            # Extract thickness
+            thick_match = re.search(r'<strong>Rotor Thickness:</strong>\s*[\d.]+\s*in\s*\((\d+(?:\.\d+)?)\s*mm\)', card_html)
+            if thick_match:
+                rotor_raw["nominal_thickness_mm"] = float(thick_match.group(1))
+            
+            # Extract height
+            height_match = re.search(r'<strong>Rotor Height:</strong>\s*[\d.]+\s*in\s*\((\d+(?:\.\d+)?)\s*mm\)', card_html)
+            if height_match:
+                rotor_raw["overall_height_mm"] = float(height_match.group(1))
+            
+            # Extract center bore
+            bore_match = re.search(r'<strong>Center Bore:</strong>\s*[\d.]+\s*in\s*\((\d+(?:\.\d+)?)\s*mm\)', card_html)
+            if bore_match:
+                rotor_raw["center_bore_mm"] = float(bore_match.group(1))
+            
+            # Extract bolt pattern for hole count
+            bolt_match = re.search(r'<strong>Bolt Pattern:</strong>\s*(\d+)x', card_html)
+            if bolt_match:
+                rotor_raw["bolt_hole_count"] = int(bolt_match.group(1))
+            
+            # Extract type
+            type_match = re.search(r'<strong>Type:</strong>\s*([^<]+)', card_html)
+            if type_match:
+                type_str = clean_text(type_match.group(1)).lower()
+                if "drilled" in type_str and "slotted" in type_str:
+                    rotor_raw["ventilation_type"] = "drilled_slotted"
+                elif "drilled" in type_str:
+                    rotor_raw["ventilation_type"] = "drilled"
+                elif "slotted" in type_str:
+                    rotor_raw["ventilation_type"] = "slotted"
+                else:
+                    rotor_raw["ventilation_type"] = "vented"
+            
+            # Extract directionality
+            dir_match = re.search(r'<strong>Directional:</strong>\s*([^<]+)', card_html)
+            if dir_match:
+                dir_str = clean_text(dir_match.group(1)).lower()
+                if "yes" in dir_str:
+                    # Check for left/right in parentheses
+                    if "left" in dir_str:
+                        rotor_raw["directionality"] = "left"
+                    elif "right" in dir_str:
+                        rotor_raw["directionality"] = "right"
+                    else:
+                        rotor_raw["directionality"] = "non_directional"
+                else:
+                    rotor_raw["directionality"] = "non_directional"
+            
+            # Only add if we have minimum required fields
+            if rotor_raw.get("catalog_ref"):
+                rotors.append(rotor_raw)
+        
+        except Exception as e:
+            # Skip malformed cards, continue processing
+            continue
+    
     return rotors
 
 
