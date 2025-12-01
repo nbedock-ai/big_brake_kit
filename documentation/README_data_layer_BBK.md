@@ -775,7 +775,142 @@ Total: 11 assertions validées (test_dedup_v1.py)
 
 ---
 
-## 5. Non-objectifs V1
+## 5. Analyse des rotors (Mission 10)
+
+### 5.1 Analyse préliminaire des rotors - Clustering géométrique
+
+**Status: ✅ Implémenté (Mission 10)**
+
+Segmentation de l'espace des rotors en familles géométriques pour faciliter la sélection de rotors maîtres (M11).
+
+**Objectif:**
+- Grouper les rotors similaires géométriquement
+- Préparer la base pour sélectionner 15-25 rotors maîtres représentatifs
+- Identifier la couverture de l'espace des rotors disponibles
+
+**Fichier:** `rotor_analysis/clustering.py`
+
+**Méthode: Clustering par binning** (V1 - pas de k-means)
+
+Au lieu d'algorithmes complexes, on utilise un binning simple sur 3 dimensions géométriques:
+
+| Dimension | Pas de binning | Justification |
+|-----------|---------------|---------------|
+| **Diamètre externe** | 5mm | Groupes naturels (280, 285 → bin 280) |
+| **Épaisseur nominale** | 0.5mm | Précision nécessaire (22.0 vs 22.5mm) |
+| **Offset** | 2mm | Tolérance raisonnable pour montage |
+
+**Calcul de l'offset effectif:**
+```python
+# Stratégie 1: Offset explicite
+if rotor["offset_mm"] is not None:
+    offset = rotor["offset_mm"]
+
+# Stratégie 2: Calcul depuis hauteurs
+elif rotor["overall_height_mm"] and rotor["hat_height_mm"]:
+    offset = overall_height_mm - hat_height_mm
+
+# Stratégie 3: Incomplet
+else:
+    offset = None  # Rotor skippé du clustering
+```
+
+**Algorithme de binning:**
+```python
+def bin_value(x: float, step: float) -> float:
+    return round(x / step) * step
+
+# Exemple: 282.3mm avec step=5mm → 280mm
+# Exemple: 287.8mm avec step=5mm → 290mm
+```
+
+**Clé de cluster:**
+Chaque rotor est mappé à une clé `(diameter_bin, thickness_bin, offset_bin)`.
+
+Exemple:
+- Rotor A: (282.3mm, 22.4mm, 45mm) → key = (280, 22.5, 44)
+- Rotor B: (280.0mm, 22.0mm, 40mm) → key = (280, 22.0, 40)
+- → Rotors dans clusters différents
+
+**Output: rotor_clusters.json**
+
+Structure:
+```json
+{
+  "meta": {
+    "diam_bin_step_mm": 5.0,
+    "thick_bin_step_mm": 0.5,
+    "offset_bin_step_mm": 2.0,
+    "cluster_count": 15
+  },
+  "clusters": [
+    {
+      "cluster_id": 0,
+      "key": {
+        "outer_diameter_mm": 280.0,
+        "nominal_thickness_mm": 22.0,
+        "offset_mm": 40.0
+      },
+      "centroid": {
+        "outer_diameter_mm": 281.2,
+        "nominal_thickness_mm": 22.1,
+        "offset_mm": 40.3
+      },
+      "count": 3,
+      "members": [
+        {"brand": "DBA", "catalog_ref": "DBA2000", ...},
+        ...
+      ]
+    },
+    ...
+  ]
+}
+```
+
+**Centroïde:**
+Moyenne arithmétique des membres du cluster (pas pondérée).
+
+**Usage:**
+```bash
+# Direct Python
+python -m rotor_analysis.clustering
+
+# Ou import
+from rotor_analysis.clustering import run_clustering
+run_clustering()
+```
+
+**Tests validés:**
+- ✅ Binning function (5 cas, arrondi correct)
+- ✅ Offset calculation (explicit, calculated, incomplete)
+- ✅ Cluster key generation (complete, calculated, incomplete)
+- ✅ Cluster building (grouping, count, centroids)
+- ✅ JSON serialization (meta, clusters, structured format)
+
+Total: 26 assertions validées (test_rotor_clustering.py)
+
+**Lien avec M11:**
+Ce clustering servira de base pour:
+1. Identifier les zones denses (rotors populaires)
+2. Identifier les zones creuses (rotors rares/spécialisés)
+3. Sélectionner 15-25 rotors maîtres représentatifs
+4. Couvrir uniformément l'espace géométrique
+
+**Limitations V1:**
+- **Pas de pondération:** Tous les rotors comptent également
+- **Pas de clustering avancé:** Binning simple, pas de k-means/DBSCAN
+- **Pas d'analyse de disponibilité:** Ne considère pas stock/popularité
+- **Pas d'utilisation du poids:** `rotor_weight_kg` ignoré
+
+**Évolutions futures (V2):**
+- M11: Sélection de rotors maîtres depuis clusters
+- M12+: K-means ou DBSCAN pour clusters adaptatifs
+- M13+: Pondération par popularité/disponibilité
+- M14+: Features supplémentaires (poids, ventilation type)
+
+---
+
+## 6. Non-objectifs V1
 
 Explicitement hors scope pour l’instant :
 
